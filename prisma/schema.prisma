@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   // "INFLUENCER" ou "BRAND"
+  createdAt DateTime @default(now())
+
+  influencer ProfileInfluencer?
+  brand      ProfileBrand?
+}
+
+model ProfileInfluencer {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  name      String
+  instagram String?
+  tiktok    String?
+  followers Int        @default(0)
+  niche     String
+  bio       String
+  proposals Proposal[]
+}
+
+model ProfileBrand {
+  id          String     @id @default(uuid())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id])
+  companyName String
+  industry    String
+  campaigns   Campaign[]
+}
+
+model Campaign {
+  id          String       @id @default(uuid())
+  brandId     String
+  brand       ProfileBrand @relation(fields: [brandId], references: [id])
+  title       String
+  description String
+  budget      Float
+  niche       String
+  status      String       @default("OPEN") // "OPEN", "CLOSED"
+  proposals   Proposal[]
+  createdAt   DateTime     @default(now())
+}
+
+model Proposal {
+  id           String            @id @default(uuid())
+  campaignId   String
+  campaign     Campaign          @relation(fields: [campaignId], references: [id])
+  influencerId String
+  influencer   ProfileInfluencer @relation(fields: [influencerId], references: [id])
+  status       String            @default("PENDING") // "PENDING", "ACCEPTED", "REJECTED"
+  message      String
+  createdAt    DateTime          @default(now())
+}
