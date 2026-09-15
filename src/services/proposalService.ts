@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   increment,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, sanitizeForFirestore } from "@/lib/firebase";
 import { Proposal, ProposalStatus, SendProposalDTO } from "@/types";
 
 export type SendProposalData = SendProposalDTO;
@@ -39,7 +39,7 @@ export async function sendProposal(data: SendProposalData): Promise<Proposal> {
     serverCreatedAt: serverTimestamp(),
   };
 
-  const docRef = await addDoc(proposalsRef, newProposalData);
+  const docRef = await addDoc(proposalsRef, sanitizeForFirestore(newProposalData));
 
   // Atualiza contador na campanha
   try {

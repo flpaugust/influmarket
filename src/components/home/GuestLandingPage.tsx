@@ -167,11 +167,11 @@ export default function GuestLandingPage() {
                             />
                           ) : (
                             <div className="w-8 h-8 rounded-lg bg-stone-900 text-white font-bold text-xs flex items-center justify-center">
-                              {camp.brandName.charAt(0).toUpperCase()}
+                              {(camp.brandName || "Brand").charAt(0).toUpperCase()}
                             </div>
                           )}
                           <span className="text-xs font-bold text-stone-800">
-                            {camp.brandName}
+                            {camp.brandName || "Marca Anônima"}
                           </span>
                         </div>
                         <span className="pill-badge pill-lime text-[11px] font-bold">

@@ -5,7 +5,7 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, sanitizeForFirestore } from "@/lib/firebase";
 import { UserProfile, UserRole } from "@/types";
 
 export interface RegisterData {
@@ -114,7 +114,7 @@ export async function registerUser(
     uid: user.uid,
     email: user.email || email,
     role,
-    name: initialData.name || (role === "INFLUENCER" ? "Novo Criador" : undefined),
+    name: initialData.name || (role === "INFLUENCER" ? "Novo Criador" : "Responsável"),
     handle: initialData.handle || (role === "INFLUENCER" ? `@creator_${user.uid.slice(0, 5)}` : undefined),
     companyName: initialData.companyName || (role === "BRAND" ? "Nova Marca" : undefined),
     industry: initialData.industry || (role === "BRAND" ? "Geral" : undefined),
@@ -131,7 +131,7 @@ export async function registerUser(
     createdAt: new Date().toISOString(),
   };
 
-  await setDoc(userDocRef, userProfile);
+  await setDoc(userDocRef, sanitizeForFirestore(userProfile));
 
   return { user, profile: userProfile };
 }

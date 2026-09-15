@@ -9,7 +9,7 @@ import {
   limit,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, sanitizeForFirestore } from "@/lib/firebase";
 import { Campaign, CreateCampaignDTO } from "@/types";
 
 export type CreateCampaignData = CreateCampaignDTO;
@@ -41,7 +41,7 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
     serverCreatedAt: serverTimestamp(),
   };
 
-  const docRef = await addDoc(campaignsRef, newCampaignData);
+  const docRef = await addDoc(campaignsRef, sanitizeForFirestore(newCampaignData));
 
   return {
     id: docRef.id,

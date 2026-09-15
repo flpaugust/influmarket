@@ -8,7 +8,7 @@ import {
   getDocs,
   limit,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, sanitizeForFirestore } from "@/lib/firebase";
 import { UserProfile, UpdateProfileDTO } from "@/types";
 
 /**
@@ -36,10 +36,10 @@ export async function updateUserProfile(
   data: UpdateProfileDTO | Partial<UserProfile>
 ): Promise<void> {
   const docRef = doc(db, "users", uid);
-  await updateDoc(docRef, {
+  await updateDoc(docRef, sanitizeForFirestore({
     ...data,
     updatedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export interface InfluencerFilterOptions {
