@@ -57,6 +57,7 @@ export default function CadastroPage() {
               bio: `Criador de conteúdo focado em ${nicheOrIndustry}.`,
             }
           : {
+              name,
               companyName: handleOrCompany || name,
               industry: nicheOrIndustry,
             };

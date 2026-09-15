@@ -17,6 +17,7 @@ import {
   Send,
   FileText,
   User,
+  MessageSquareText,
 } from "lucide-react";
 
 export default function Navbar() {
@@ -61,21 +62,16 @@ export default function Navbar() {
                   InfluMarket
                 </span>
               </Link>
-
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200 text-[11px] font-semibold text-stone-600">
-                <span className="w-1.5 h-1.5 rounded-full bg-lime-500 animate-pulse" />
-                +1.200 creators ativos
-              </span>
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-6 text-sm font-medium text-stone-600">
+            <div className="hidden lg:flex items-center gap-4 xl:gap-6 text-sm font-medium text-stone-600">
               {/* Not Logged In Navigation */}
               {!isLoggedIn && (
                 <>
                   <Link
                     href="/"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname === "/" ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -83,7 +79,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/dashboard/creator"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname.includes("creator") ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -91,7 +87,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/dashboard/marca"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname.includes("marca") ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -105,7 +101,7 @@ export default function Navbar() {
                 <>
                   <Link
                     href="/"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname === "/" ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -113,7 +109,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/dashboard/creator"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname === "/dashboard/creator" ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -121,7 +117,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/profile"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname === "/profile" ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -135,7 +131,7 @@ export default function Navbar() {
                 <>
                   <Link
                     href="/"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname === "/" ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -143,7 +139,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/dashboard/marca?tab=campanhas"
-                    className={`transition-colors hover:text-stone-900 ${
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 ${
                       pathname === "/dashboard/marca" ? "text-stone-900 font-semibold" : ""
                     }`}
                   >
@@ -151,16 +147,25 @@ export default function Navbar() {
                   </Link>
                   <Link
                     href="/dashboard/marca?tab=propostas"
-                    className="transition-colors hover:text-stone-900"
+                    className="whitespace-nowrap transition-colors hover:text-stone-900"
                   >
                     Propostas Recebidas
+                  </Link>
+                  <Link
+                    href="/hub"
+                    className={`whitespace-nowrap transition-colors hover:text-stone-900 flex items-center gap-1 ${
+                      pathname === "/hub" ? "text-stone-900 font-semibold" : ""
+                    }`}
+                  >
+                    <MessageSquareText className="w-3.5 h-3.5" />
+                    Hub IA
                   </Link>
                 </>
               )}
             </div>
 
             {/* Right Action buttons / User profile */}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-3 shrink-0">
               {isLoggedIn ? (
                 <div className="flex items-center gap-3">
                   {/* Brand Action: + Nova Campanha button */}
@@ -239,7 +244,7 @@ export default function Navbar() {
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label="Menu"
-              className="md:hidden p-2 text-stone-700 hover:text-stone-950 rounded-lg hover:bg-stone-100"
+              className="lg:hidden p-2 text-stone-700 hover:text-stone-950 rounded-lg hover:bg-stone-100"
             >
               {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -248,7 +253,7 @@ export default function Navbar() {
 
         {/* Mobile Drawer */}
         {menuOpen && (
-          <div className="md:hidden border-t border-stone-200 bg-white px-4 pt-3 pb-5 space-y-3">
+          <div className="lg:hidden border-t border-stone-200 bg-white px-4 pt-3 pb-5 space-y-3">
             <Link
               href="/"
               onClick={() => setMenuOpen(false)}
@@ -291,6 +296,13 @@ export default function Navbar() {
                       className="block px-3 py-2 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50"
                     >
                       Propostas Recebidas
+                    </Link>
+                    <Link
+                      href="/hub"
+                      onClick={() => setMenuOpen(false)}
+                      className="block px-3 py-2 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-1.5"
+                    >
+                      <MessageSquareText className="w-4 h-4" /> Hub IA
                     </Link>
                     <button
                       onClick={() => {
