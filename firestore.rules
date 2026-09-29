@@ -1,0 +1,126 @@
+/**
+ * Firestore Security Rules — InfluMarket
+ *
+ * Regras de controle de acesso para o Cloud Firestore baseadas nos princípios
+ * de segurança OWASP Top 10 (2021) e nos controles da ISO/IEC 27002.
+ *
+ * IMPORTANTE: Campanhas criadas via Hub Conversacional usam o Firebase Admin SDK
+ * (server-side), que bypassa estas regras de forma segura. As validações de
+ * dados da IA são feitas via Zod na API Route do Next.js ANTES da gravação.
+ *
+ * Estas regras protegem o acesso DIRETO ao Firestore feito pelo SDK client-side.
+ *
+ * Categorias OWASP mitigadas:
+ * - A01:2021 — Broken Access Control: RBAC por uid e role em cada coleção.
+ * - A03:2021 — Injection: Validação de tipos e valores em regras de criação.
+ * - A05:2021 — Security Misconfiguration: Default deny explícito.
+ */
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Funções Auxiliares ──────────────────────────────────────────────
+
+    /** Verifica se a requisição possui autenticação válida. */
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /** Verifica se o uid autenticado é o dono do documento. */
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    /** Verifica se o campo `role` é um dos papéis permitidos. */
+    function isValidRole(role) {
+      return role in ['INFLUENCER', 'BRAND'];
+    }
+
+    // ─── Coleção `users` ────────────────────────────────────────────────
+    // OWASP A01: Cada usuário pode ler/escrever SOMENTE seu próprio perfil.
+    // Um INFLUENCER jamais acessa dados de uma BRAND concorrente e vice-versa.
+
+    match /users/{userId} {
+      // Leitura: somente o próprio usuário
+      allow read: if isOwner(userId);
+
+      // Criação: somente o próprio usuário, com role válido e uid consistente
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && isValidRole(request.resource.data.role)
+        && request.resource.data.email is string;
+
+      // Atualização: somente o próprio usuário, sem alterar uid nem role
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email;
+
+      // Deleção: proibida (soft-delete apenas, se necessário)
+      allow delete: if false;
+    }
+
+    // ─── Coleção `campaigns` ────────────────────────────────────────────
+    // Qualquer usuário autenticado pode LER campanhas (marketplace público).
+    // Apenas a marca dona pode CRIAR, EDITAR e EXCLUIR suas próprias campanhas.
+
+    match /campaigns/{campaignId} {
+      // Leitura: qualquer usuário autenticado (feed de oportunidades)
+      allow read: if isAuthenticated();
+
+      // Criação: o brandId do documento deve ser o uid do solicitante
+      // OWASP A01: impede que uma marca crie campanha fingindo ser outra
+      allow create: if isAuthenticated()
+        && request.resource.data.brandId == request.auth.uid
+        && request.resource.data.status == 'OPEN'
+        && request.resource.data.budget is number
+        && request.resource.data.budget > 0
+        && request.resource.data.niche is string
+        && request.resource.data.title is string;
+
+      // Atualização: somente a marca dona da campanha
+      allow update: if isAuthenticated()
+        && resource.data.brandId == request.auth.uid;
+
+      // Deleção: somente a marca dona da campanha
+      allow delete: if isAuthenticated()
+        && resource.data.brandId == request.auth.uid;
+    }
+
+    // ─── Coleção `proposals` ────────────────────────────────────────────
+    // OWASP A01: Leitura restrita ao influenciador que enviou OU à marca dona.
+    // Criação: apenas o próprio influenciador, com status inicial PENDING.
+    // Atualização: apenas a marca dona pode aceitar/recusar.
+
+    match /proposals/{proposalId} {
+      // Leitura: influenciador dono da proposta OU marca dona da campanha
+      allow read: if isAuthenticated()
+        && (resource.data.influencerId == request.auth.uid
+            || resource.data.brandId == request.auth.uid);
+
+      // Criação: apenas o próprio influenciador, status obrigatório PENDING
+      allow create: if isAuthenticated()
+        && request.resource.data.influencerId == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.campaignId is string
+        && request.resource.data.message is string;
+
+      // Atualização: apenas a marca dona, e somente para ACCEPTED ou REJECTED
+      allow update: if isAuthenticated()
+        && resource.data.brandId == request.auth.uid
+        && request.resource.data.status in ['ACCEPTED', 'REJECTED'];
+
+      // Deleção: proibida (histórico de propostas deve ser preservado)
+      allow delete: if false;
+    }
+
+    // ─── Default Deny ───────────────────────────────────────────────────
+    // Qualquer coleção não coberta acima é bloqueada por padrão.
+    // OWASP A05: Evita acesso acidental a coleções futuras sem regras.
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

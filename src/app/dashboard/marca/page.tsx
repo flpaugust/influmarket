@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NewCampaignModal from "@/components/modals/NewCampaignModal";
 import { useAuth } from "@/context/AuthContext";
-import { getBrandCampaigns } from "@/services/campaignService";
+import { getBrandCampaigns, deleteCampaign } from "@/services/campaignService";
 import { getBrandProposals, updateProposalStatus } from "@/services/proposalService";
 import { formatFriendlyError } from "@/services/authService";
 import { Campaign, Proposal } from "@/types";
@@ -31,6 +31,7 @@ import {
   Filter,
   MessageSquare,
   FileText,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -66,9 +67,10 @@ function BrandDashboardContent() {
       ]);
       setCampaigns(camps);
       setProposals(props);
-      if (camps.length > 0 && !expandedCampaignId) {
-        setExpandedCampaignId(camps[0].id || null);
-      }
+      setExpandedCampaignId((prev) => {
+        if (prev) return prev;
+        return camps.length > 0 ? (camps[0].id || null) : null;
+      });
     } catch (err) {
       console.error("Erro ao carregar dados da marca:", err);
       setErrorMessage(
@@ -77,7 +79,7 @@ function BrandDashboardContent() {
     } finally {
       setLoadingData(false);
     }
-  }, [user, expandedCampaignId]);
+  }, [user]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -114,6 +116,27 @@ function BrandDashboardContent() {
   const pendingProposalsCount = proposals.filter((p) => p.status === "PENDING").length;
   const acceptedProposalsCount = proposals.filter((p) => p.status === "ACCEPTED").length;
   const matchRate = proposals.length > 0 ? Math.round((acceptedProposalsCount / proposals.length) * 100) : 0;
+
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
+
+  const handleDeleteCampaign = async (campaignId: string, campaignTitle: string) => {
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir a campanha "${campaignTitle}"?\n\nEssa ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+
+    setDeletingCampaignId(campaignId);
+    try {
+      await deleteCampaign(campaignId);
+      showToast("🗑️ Campanha excluída com sucesso.");
+      await loadData();
+    } catch (err) {
+      console.error("Erro ao deletar campanha:", err);
+      showToast("❌ Erro ao excluir campanha. Tente novamente.");
+    } finally {
+      setDeletingCampaignId(null);
+    }
+  };
 
   // Filtered proposals list for the dedicated tab
   const filteredProposals = proposals.filter((p) => {
@@ -423,6 +446,22 @@ function BrandDashboardContent() {
                               <ChevronUp className="w-4 h-4" />
                             ) : (
                               <ChevronDown className="w-4 h-4" />
+                            )}
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCampaign(camp.id!, camp.title);
+                            }}
+                            disabled={deletingCampaignId === camp.id}
+                            className="p-2 rounded-xl bg-stone-100 text-stone-400 hover:bg-rose-50 hover:text-rose-600 transition-all disabled:opacity-50"
+                            title="Excluir Campanha"
+                          >
+                            {deletingCampaignId === camp.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
                             )}
                           </button>
                         </div>
