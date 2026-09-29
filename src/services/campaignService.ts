@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  deleteDoc,
   query,
   where,
   limit,
@@ -159,5 +160,18 @@ export async function getCampaignById(id: string): Promise<Campaign | null> {
   } catch (error) {
     console.error("Erro ao buscar campanha:", error);
     return null;
+  }
+}
+
+/**
+ * Deleta uma campanha pelo ID.
+ */
+export async function deleteCampaign(campaignId: string): Promise<void> {
+  try {
+    const docRef = doc(db, "campaigns", campaignId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Erro ao deletar campanha:", error);
+    throw error;
   }
 }
