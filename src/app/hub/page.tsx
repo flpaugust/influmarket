@@ -147,13 +147,19 @@ export default function HubPage() {
       ].map((m) => ({ role: m.role, text: m.text }));
 
       try {
+        const idToken = await user.getIdToken();
+
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
           body: JSON.stringify({
             messages: historyForApi,
             brandId: user.uid,
             brandName: profile?.companyName || "Marca Parceira",
+            hasCampaign: messages.some(m => m.campaignCreated)
           }),
         });
 

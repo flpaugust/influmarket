@@ -37,13 +37,23 @@ service cloud.firestore {
       return role in ['INFLUENCER', 'BRAND'];
     }
 
+    /** Retorna o papel (role) do usuário autenticado no Firestore. */
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    /** Verifica se apenas os campos especificados foram alterados. */
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
     // ─── Coleção `users` ────────────────────────────────────────────────
     // OWASP A01: Cada usuário pode ler/escrever SOMENTE seu próprio perfil.
     // Um INFLUENCER jamais acessa dados de uma BRAND concorrente e vice-versa.
 
     match /users/{userId} {
-      // Leitura: somente o próprio usuário
-      allow read: if isOwner(userId);
+      // Leitura: o próprio usuário ou perfil público de influenciador
+      allow read: if isOwner(userId) || resource.data.role == 'INFLUENCER';
 
       // Criação: somente o próprio usuário, com role válido e uid consistente
       allow create: if isOwner(userId)
@@ -51,11 +61,12 @@ service cloud.firestore {
         && isValidRole(request.resource.data.role)
         && request.resource.data.email is string;
 
-      // Atualização: somente o próprio usuário, sem alterar uid nem role
+      // Atualização: somente o próprio usuário, sem alterar uid, role, ou métricas de confiança
       allow update: if isOwner(userId)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.role == resource.data.role
-        && request.resource.data.email == resource.data.email;
+        && request.resource.data.email == resource.data.email
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rating', 'completedDeals', 'engagementRate']);
 
       // Deleção: proibida (soft-delete apenas, se necessário)
       allow delete: if false;
@@ -66,12 +77,13 @@ service cloud.firestore {
     // Apenas a marca dona pode CRIAR, EDITAR e EXCLUIR suas próprias campanhas.
 
     match /campaigns/{campaignId} {
-      // Leitura: qualquer usuário autenticado (feed de oportunidades)
-      allow read: if isAuthenticated();
+      // Leitura: campanhas abertas são públicas; qualquer usuário autenticado pode ler outras
+      allow read: if resource.data.status == 'OPEN' || isAuthenticated();
 
       // Criação: o brandId do documento deve ser o uid do solicitante
-      // OWASP A01: impede que uma marca crie campanha fingindo ser outra
+      // OWASP A01: impede que uma marca crie campanha fingindo ser outra e exige que seja BRAND
       allow create: if isAuthenticated()
+        && userRole() == 'BRAND'
         && request.resource.data.brandId == request.auth.uid
         && request.resource.data.status == 'OPEN'
         && request.resource.data.budget is number
@@ -79,9 +91,18 @@ service cloud.firestore {
         && request.resource.data.niche is string
         && request.resource.data.title is string;
 
-      // Atualização: somente a marca dona da campanha
-      allow update: if isAuthenticated()
-        && resource.data.brandId == request.auth.uid;
+      // Atualização: marca dona pode alterar dados básicos, OU qualquer um autenticado pode incrementar o contador de propostas
+      allow update: if isAuthenticated() && (
+        (
+          resource.data.brandId == request.auth.uid
+          && request.resource.data.brandId == resource.data.brandId
+          && request.resource.data.budget >= resource.data.budget
+          && onlyChanges(['title', 'description', 'deliverables', 'deadline', 'status', 'budget'])
+        ) || (
+          onlyChanges(['proposalsCount']) 
+          && request.resource.data.proposalsCount == resource.data.proposalsCount + 1
+        )
+      );
 
       // Deleção: somente a marca dona da campanha
       allow delete: if isAuthenticated()
@@ -99,17 +120,20 @@ service cloud.firestore {
         && (resource.data.influencerId == request.auth.uid
             || resource.data.brandId == request.auth.uid);
 
-      // Criação: apenas o próprio influenciador, status obrigatório PENDING
+      // Criação: apenas o próprio influenciador, status obrigatório PENDING, brandId validado
       allow create: if isAuthenticated()
         && request.resource.data.influencerId == request.auth.uid
         && request.resource.data.status == 'PENDING'
         && request.resource.data.campaignId is string
-        && request.resource.data.message is string;
+        && request.resource.data.message is string
+        && request.resource.data.brandId == get(/databases/$(database)/documents/campaigns/$(request.resource.data.campaignId)).data.brandId;
 
-      // Atualização: apenas a marca dona, e somente para ACCEPTED ou REJECTED
+      // Atualização: apenas a marca dona, e somente para ACCEPTED ou REJECTED a partir de PENDING
       allow update: if isAuthenticated()
         && resource.data.brandId == request.auth.uid
-        && request.resource.data.status in ['ACCEPTED', 'REJECTED'];
+        && resource.data.status == 'PENDING'
+        && request.resource.data.status in ['ACCEPTED', 'REJECTED']
+        && onlyChanges(['status', 'updatedAt']);
 
       // Deleção: proibida (histórico de propostas deve ser preservado)
       allow delete: if false;

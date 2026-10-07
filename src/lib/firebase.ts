@@ -2,14 +2,20 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
+if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NODE_ENV !== "test") {
+  console.warn("Variáveis de ambiente do Firebase ausentes. Configure o .env.local.");
+}
+
+const isTest = process.env.NODE_ENV === "test";
+
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock-api-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "mock.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "mock-project",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "mock.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:1234567890:web:abcdef123456",
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-MOCKID",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || (isTest ? "mock-api-key" : ""),
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || (isTest ? "mock.firebaseapp.com" : ""),
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || (isTest ? "mock-project" : ""),
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "",
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -20,7 +26,7 @@ export const db = getFirestore(app);
  * Remove recursivamente todas as propriedades com valor `undefined` de um objeto,
  * evitando erros do Firestore que rejeita campos com valor undefined.
  */
-export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+export function sanitizeForFirestore<T>(obj: T): T {
   if (obj === null || typeof obj !== "object") {
     return obj;
   }
@@ -31,13 +37,19 @@ export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
     ) as unknown as T;
   }
 
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value !== undefined) {
-      result[key] =
-        value !== null && typeof value === "object" && !(value instanceof Date) && typeof value.toMillis !== "function"
-          ? sanitizeForFirestore(value)
-          : value;
+      // Se for nulo, mantemos como nulo
+      if (value === null) {
+        result[key] = null;
+        continue;
+      }
+      
+      // Checa se é um objeto plano. Objetos de classe como Date ou FieldValue têm construtores diferentes.
+      const isPlainObject = typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+
+      result[key] = isPlainObject ? sanitizeForFirestore(value) : value;
     }
   }
   return result as T;

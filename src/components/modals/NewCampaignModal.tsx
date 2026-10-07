@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { X, DollarSign, Plus, Sparkles, AlertCircle, Loader2 } from "lucide-react";
+import { X, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createCampaign } from "@/services/campaignService";
 import { formatFriendlyError } from "@/services/authService";
+
+import { CampaignExtractionSchema, ALLOWED_NICHES } from "@/lib/validation";
+import { ZodError } from "zod";
 
 interface NewCampaignModalProps {
   isOpen: boolean;
@@ -19,7 +22,7 @@ export default function NewCampaignModal({
 }: NewCampaignModalProps) {
   const { user, profile, showToast } = useAuth();
   const [title, setTitle] = useState("");
-  const [niche, setNiche] = useState("Tech");
+  const [niche, setNiche] = useState<string>(ALLOWED_NICHES[0]);
   const [budget, setBudget] = useState("");
   const [description, setDescription] = useState("");
   const [deliverablesInput, setDeliverablesInput] = useState("1 Reel de 60s, 3 Stories com link");
@@ -30,35 +33,39 @@ export default function NewCampaignModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !budget || !description) {
-      setError("Por favor preencha todos os campos obrigatórios.");
-      return;
-    }
 
     if (!user) {
       setError("Você precisa estar autenticado como marca para criar uma campanha.");
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
     try {
-      const deliverablesArray = deliverablesInput
-        .split(",")
-        .map((d) => d.trim())
-        .filter(Boolean);
+      // Validate inputs using Zod
+      const validatedData = CampaignExtractionSchema.parse({
+        title,
+        niche,
+        budget: parseFloat(budget),
+        description,
+        deliverables: deliverablesInput,
+      });
+
+      setLoading(true);
+      setError(null);
+
+      const deliverablesArray = validatedData.deliverables
+        ? validatedData.deliverables.split(",").map((d) => d.trim()).filter(Boolean)
+        : [];
 
       await createCampaign({
         brandId: user.uid,
         brandName: profile?.companyName || "Marca Parceira",
         brandLogo: profile?.logo,
         brandIndustry: profile?.industry || "E-commerce",
-        title,
-        description,
+        title: validatedData.title || title,
+        description: validatedData.description || description,
         deliverables: deliverablesArray,
-        budget: parseFloat(budget),
-        niche,
+        budget: validatedData.budget,
+        niche: validatedData.niche,
       });
 
       showToast("✨ Campanha publicada com sucesso no mural!");
@@ -67,11 +74,15 @@ export default function NewCampaignModal({
       setDescription("");
       onClose();
       if (onCampaignCreated) onCampaignCreated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao criar campanha:", err);
-      setError(
-        formatFriendlyError(err, "Não foi possível publicar a campanha no momento. Tente novamente.")
-      );
+      if (err instanceof ZodError) {
+        setError(err.issues[0].message);
+      } else {
+        setError(
+          formatFriendlyError(err, "Não foi possível publicar a campanha no momento. Tente novamente.")
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -126,12 +137,11 @@ export default function NewCampaignModal({
                 onChange={(e) => setNiche(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900 transition-all"
               >
-                <option value="Tech">Tech & Gadgets</option>
-                <option value="Moda">Moda & Beleza</option>
-                <option value="Fitness">Fitness & Saúde</option>
-                <option value="Gastronomia">Gastronomia</option>
-                <option value="Games">Games & Lifestyle</option>
-                <option value="Educação">Educação & Negócios</option>
+                {ALLOWED_NICHES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
               </select>
             </div>
 

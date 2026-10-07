@@ -4,7 +4,7 @@ import {
   signOut,
   User as FirebaseUser,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db, sanitizeForFirestore } from "@/lib/firebase";
 import { UserProfile, UserRole } from "@/types";
 
@@ -36,7 +36,9 @@ export function formatFriendlyError(
   const raw =
     typeof err === "string"
       ? err
-      : (err as any)?.code || (err as any)?.message || String(err);
+      : (err as { code?: string; message?: string })?.code ||
+        (err as { code?: string; message?: string })?.message ||
+        String(err);
 
   const lower = String(raw).toLowerCase();
 
@@ -109,7 +111,6 @@ export async function registerUser(
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
-  const userDocRef = doc(db, "users", user.uid);
   const userProfile: UserProfile = {
     uid: user.uid,
     email: user.email || email,
@@ -131,9 +132,16 @@ export async function registerUser(
     createdAt: new Date().toISOString(),
   };
 
-  await setDoc(userDocRef, sanitizeForFirestore(userProfile));
-
-  return { user, profile: userProfile };
+  try {
+    const sanitizedProfile = sanitizeForFirestore(userProfile);
+    const userDocRef = doc(db, "users", user.uid);
+    await setDoc(userDocRef, sanitizedProfile);
+    return { user, profile: userProfile };
+  } catch (error) {
+    console.error("Failed to create profile, rolling back Auth user", error);
+    await user.delete().catch(err => console.error("Rollback failed:", err));
+    throw new Error("Failed to create user profile. Please try again.");
+  }
 }
 
 /**
