@@ -99,7 +99,7 @@ export async function listInfluencers(
     return influencers;
   } catch (error) {
     console.error("Erro ao listar influenciadores:", error);
-    return [];
+    throw error;
   }
 }
 

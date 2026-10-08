@@ -1,6 +1,7 @@
 import {
   collection,
-  addDoc,
+  getDoc,
+  setDoc,
   doc,
   getDocs,
   updateDoc,
@@ -19,7 +20,6 @@ export type SendProposalData = SendProposalDTO;
  * Cria proposta associando influenciador e campanha no Cloud Firestore.
  */
 export async function sendProposal(data: SendProposalData): Promise<Proposal> {
-  const proposalsRef = collection(db, "proposals");
   const newProposalData = {
     campaignId: data.campaignId,
     campaignTitle: data.campaignTitle,
@@ -39,7 +39,15 @@ export async function sendProposal(data: SendProposalData): Promise<Proposal> {
     serverCreatedAt: serverTimestamp(),
   };
 
-  const docRef = await addDoc(proposalsRef, sanitizeForFirestore(newProposalData));
+  const proposalId = `${data.campaignId}_${data.influencerId}`;
+  const docRef = doc(db, "proposals", proposalId);
+  
+  const existingDoc = await getDoc(docRef);
+  if (existingDoc.exists()) {
+    throw new Error("Você já enviou uma proposta para esta campanha.");
+  }
+
+  await setDoc(docRef, sanitizeForFirestore(newProposalData));
 
   // Atualiza contador na campanha
   try {
@@ -52,7 +60,7 @@ export async function sendProposal(data: SendProposalData): Promise<Proposal> {
   }
 
   return {
-    id: docRef.id,
+    id: proposalId,
     ...newProposalData,
   };
 }
@@ -79,7 +87,7 @@ export async function getCampaignProposals(
     })) as Proposal[];
   } catch (error) {
     console.error("Erro ao buscar propostas da campanha:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -105,7 +113,7 @@ export async function getBrandProposals(
     })) as Proposal[];
   } catch (error) {
     console.error("Erro ao buscar propostas da marca:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -131,7 +139,7 @@ export async function getInfluencerProposals(
     })) as Proposal[];
   } catch (error) {
     console.error("Erro ao buscar propostas do criador:", error);
-    return [];
+    throw error;
   }
 }
 

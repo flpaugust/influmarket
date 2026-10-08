@@ -96,6 +96,7 @@ export const ChatRequestSchema = z.object({
     .max(200, "Nome da marca muito longo.")
     .optional()
     .default("Marca Parceira"),
+  hasCampaign: z.boolean().optional(),
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;

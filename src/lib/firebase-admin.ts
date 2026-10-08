@@ -33,7 +33,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
  * - FIREBASE_ADMIN_CLIENT_EMAIL
  * - FIREBASE_ADMIN_PRIVATE_KEY (com \\n escapados)
  */
-function getAdminApp(): App {
+export function getAdminApp(): App {
   if (getApps().length > 0) {
     return getApp();
   }

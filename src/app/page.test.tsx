@@ -58,7 +58,7 @@ describe("HomePage (`/`) - Dynamic Contextual Rendering", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
-  it("exibe GuestLandingPage quando o usuário não está autenticado", () => {
+  it("exibe GuestLandingPage quando o usuário não está autenticado", async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: null,
       profile: null,
@@ -75,7 +75,7 @@ describe("HomePage (`/`) - Dynamic Contextual Rendering", () => {
     });
 
     render(<HomePage />);
-    expect(screen.getByText(/Conecte marcas a criadores com/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Conecte marcas a criadores com/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Criar Conta Gratuita/i).length).toBeGreaterThan(0);
   });
 

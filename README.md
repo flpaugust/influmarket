@@ -175,6 +175,9 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=seu_projeto.firebasestorage.app
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=seu_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=seu_app_id
 NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=seu_measurement_id
+
+# Integração de IA (Opcional para Hub Conversacional)
+GEMINI_API_KEY=sua_chave_gemini
 ```
 
 ### 6.3 Instalação das Dependências
@@ -219,6 +222,21 @@ npm run test:watch
 | `/dashboard/creator` ou `/dashboard/influencer` | Painel do Criador (Mídia Kit, Mural com filtros, Minhas Candidaturas) |
 | `/dashboard/marca` ou `/dashboard/brand` | Painel da Marca (Métricas, Campanhas publicadas, Gestão de Propostas) |
 | `/profile` | Edição completa dos dados do perfil e redes sociais |
+
+---
+
+## 🔒 9. Segurança e Arquitetura
+
+O projeto passou por uma profunda revisão baseada nos parâmetros do **OWASP Top 10 (2021)**:
+- **A01: Broken Access Control mitigado**: Todas as gravações no banco de dados utilizam exclusivamente o **Firebase Client SDK**, sendo controladas rigorosamente pelo arquivo de políticas `firestore.rules`. Usuários não podem forjar dados, criar campanhas em nome de outras marcas ou escalar privilégios.
+- **A03: Injection**: Todas as requisições de Inteligência Artificial no backend (Next.js API Routes) são validadas usando Zod schemas antes da execução no banco de dados.
+
+Para aplicar as regras de segurança ao vivo no seu projeto, instale a Firebase CLI e execute:
+```bash
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:rules --project seu_project_id
+```
+Consulte o arquivo `DOC_ARQUITETURA.md` para uma visão detalhada da modelagem de ameaças e decisões arquiteturais.
 
 ---
 

@@ -65,12 +65,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    let unsubscribeDoc: (() => void) | undefined;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+      
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = undefined;
+      }
+
       if (firebaseUser) {
         // Escuta atualizações do documento de perfil em tempo real
         const userDocRef = doc(db, "users", firebaseUser.uid);
-        const unsubscribeDoc = onSnapshot(
+        unsubscribeDoc = onSnapshot(
           userDocRef,
           (docSnap) => {
             if (docSnap.exists()) {
@@ -85,15 +93,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setLoading(false);
           }
         );
-
-        return () => unsubscribeDoc();
       } else {
         setProfile(null);
         setLoading(false);
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      if (unsubscribeDoc) unsubscribeDoc();
+      unsubscribeAuth();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {

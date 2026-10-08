@@ -40,9 +40,7 @@ flowchart TD
     Client["Client (Browser / React 19)"]
     
     subgraph Vercel_NextServer["Next.js 16 (App Router / Node Runtime)"]
-        NextAuth["NextAuth Engine (/api/auth)"]
         ChatRoute["Route Handler (/api/chat)"]
-        PrismaAPI["Internal REST Routes (/api/campaigns, /api/profile)"]
     end
     
     subgraph GCP_Firebase["Google Cloud Platform (Firebase)"]
@@ -54,20 +52,12 @@ flowchart TD
         GeminiAPI["Google Gemini 3.6 Flash (Interactions API / Tool Calling)"]
     end
 
-    subgraph RelationalLocal["SQLite Local (Prisma ORM)"]
-        SQLiteDB[("dev.db (Prisma Schema)")]
-    end
-
     Client -->|Auth / Real-Time Sync| FirebaseAuth
     Client -->|Direct Service Calls| Firestore
     Client -->|Conversational Chat| ChatRoute
-    Client -->|Relational Auth/API| NextAuth
-    Client -->|Relational CRUD| PrismaAPI
 
     ChatRoute -->|Interactions API| GeminiAPI
     ChatRoute -->|hubService.ts| Firestore
-    PrismaAPI -->|ORM queries| SQLiteDB
-    NextAuth -->|Bcrypt & Credentials| SQLiteDB
 ```
 
 ### 2.2 Mapeamento de Recursos de Nuvem
@@ -102,10 +92,7 @@ flowchart TD
 | **Runtime / UI** | React / React DOM | `19.2.8` | Biblioteca de componentes declarativos. |
 | **Estilização** | Tailwind CSS | `^4` | Design system utilitário editorial com suporte a temas. |
 | **Ícones** | Lucide React | `^1.39.0` | Conjunto iconográfico contemporâneo. |
-| **BaaS / NoSQL** | Firebase Modular SDK | `^12.18.0` | Conexão client-side e server-side com Firestore e Firebase Auth. |
-| **ORM / Relacional** | Prisma Client / CLI | `^5.22.0` | Modelagem, migrações e consultas ao banco SQLite. |
-| **Autenticação Auxiliar**| NextAuth.js | `^5.0.0-beta.32` | Estratégia JWT e Credentials Provider integrada ao Prisma. |
-| **Criptografia** | bcryptjs | `^3.0.3` | Hashing seguro de senhas com salt. |
+| **BaaS / NoSQL / Auth** | Firebase Modular SDK | `^12.18.0` | Conexão client-side com Firestore e Firebase Auth. |
 | **SDK de IA** | `@google/genai` / `@google/generative-ai` | `^2.22.0` / `^0.24.1` | Integração com a API Gemini para Function/Tool Calling. |
 | **Testes** | Vitest + React Testing Library | `^4.1.11` / `^16.3.3` | Suite de testes unitários e de integração de componentes. |
 
@@ -113,9 +100,7 @@ flowchart TD
 
 ### 3.2 Modelagem de Dados
 
-O projeto conta com uma arquitetura de banco de dados híbrida:
-1. **Cloud Firestore (NoSQL):** Utilizado pelo frontend e pelos serviços em `src/services/` para persistência em nuvem e reatividade.
-2. **SQLite via Prisma ORM (Relacional):** Utilizado pelas rotas de API em `src/app/api/` e pelo NextAuth.
+O projeto utiliza primariamente **Cloud Firestore (NoSQL)** para gerenciar todas as entidades, consumidas diretamente pelo frontend através dos serviços em `src/services/` e indiretamente no Hub Conversacional.
 
 #### 3.2.1 Modelo NoSQL (Cloud Firestore)
 
@@ -240,14 +225,8 @@ model Proposal {
 | Rota | Método | Autenticação / Permissão | Descrição do Payload / Resposta |
 | :--- | :--- | :--- | :--- |
 | `/api/chat` | `POST` | Pública / Sessão de Marca | Processa mensagens de linguagem natural com Gemini 3.6 Flash. Executa Function Calling (`createCampaign`) e persiste no Firestore via `hubService`. |
-| `/api/auth/register` | `POST` | Pública | Cadastra usuário no SQLite/Prisma com hash de senha bcrypt. |
-| `/api/auth/[...nextauth]` | `GET`, `POST`| Pública / Sessão | Handlers do NextAuth para autenticação JWT com Credenciais. |
-| `/api/campaigns` | `GET` | Autenticado | Retorna campanhas da marca logada (se `role === 'BRAND'`) ou todas as campanhas abertas (se `role === 'INFLUENCER'`). |
-| `/api/campaigns` | `POST` | Autenticado (`BRAND`) | Cria campanha no banco relacional vinculada à empresa da marca. |
-| `/api/campaigns/[id]/proposals` | `GET` | Autenticado (`BRAND`) | Lista todas as propostas recebidas para a campanha `[id]`. Apenas o dono da marca tem acesso. |
-| `/api/campaigns/[id]/proposals` | `POST` | Autenticado (`INFLUENCER`)| Envia proposta/pitch para a campanha `[id]`. Valida se o criador já enviou proposta anterior. |
-| `/api/profile` | `GET` | Autenticado | Retorna o perfil completo do usuário autenticado no Prisma (`influencer` ou `brand`). |
-| `/api/profile` | `POST` | Autenticado | Executa `upsert` dos dados cadastrais do influenciador ou marca. |
+
+*(Nota: As criações de perfis, campanhas e submissão de propostas são executadas via Firebase Client SDK utilizando os arquivos de serviço locais em `src/services/`.)*
 
 ### 4.2 Contratos de Dados e Exemplos de Integração
 
@@ -277,11 +256,11 @@ model Proposal {
 ### 4.3 Camada de Serviços Client-Side (`src/services/`)
 
 A aplicação possui repositórios desacoplados que isolam chamadas ao Firebase Firestore e evitam consultas diretas na camada de apresentação:
-- [authService.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/authService.ts): Registro, login e logout com Firebase Authentication.
-- [campaignService.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/campaignService.ts): `createCampaign`, `getOpenCampaigns`, `getBrandCampaigns`, `getCampaignById`, `deleteCampaign`.
-- [proposalService.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/proposalService.ts): `sendProposal`, `getCampaignProposals`, `getBrandProposals`, `getInfluencerProposals`, `updateProposalStatus`.
-- [profileService.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/profileService.ts): `getUserProfile`, `updateUserProfile`.
-- [hubService.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/hubService.ts): `createCampaignFromChat`.
+- [authService.ts](src/services/authService.ts): Registro, login e logout com Firebase Authentication.
+- [campaignService.ts](src/services/campaignService.ts): `createCampaign`, `getOpenCampaigns`, `getBrandCampaigns`, `getCampaignById`, `deleteCampaign`.
+- [proposalService.ts](src/services/proposalService.ts): `sendProposal`, `getCampaignProposals`, `getBrandProposals`, `getInfluencerProposals`, `updateProposalStatus`.
+- [profileService.ts](src/services/profileService.ts): `getUserProfile`, `updateUserProfile`.
+- [hubService.ts](src/services/hubService.ts): `createCampaignFromChat`.
 
 ---
 
@@ -301,7 +280,7 @@ A arquitetura do InfluMarket (Next.js + Firebase + Gemini API) foi analisada fre
 
 #### 5.2.1 Contra Quebra de Controle de Acesso (A01)
 
-**Arquivo:** [firestore.rules](file:///c:/Users/Oliv/Downloads/InfluMarket/firestore.rules)
+**Arquivo:** `firestore.rules`
 
 - **RBAC (Role-Based Access Control)** implementado diretamente nas Firestore Security Rules.
 - Regra principal na coleção `campaigns`:
@@ -315,7 +294,7 @@ A arquitetura do InfluMarket (Next.js + Firebase + Gemini API) foi analisada fre
 
 #### 5.2.2 Contra Injeção e Prompt Injection (A03)
 
-**Arquivos:** [validation.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/lib/validation.ts) · [route.ts (api/chat)](file:///c:/Users/Oliv/Downloads/InfluMarket/src/app/api/chat/route.ts)
+**Arquivos:** `src/lib/validation.ts` · `src/app/api/chat/route.ts`
 
 **Defesa em Profundidade (3 camadas):**
 
@@ -340,13 +319,13 @@ A arquitetura do InfluMarket (Next.js + Firebase + Gemini API) foi analisada fre
 
 #### 5.2.3 Contra Falha de Configuração (A05)
 
-**Arquivo:** [.env.example](file:///c:/Users/Oliv/Downloads/InfluMarket/.env.example)
+**Arquivo:** [.env.example](.env.example)
 
 - **Chaves de API separadas por escopo**:
   - Variáveis `NEXT_PUBLIC_*` → expostas ao frontend (chaves públicas do Firebase).
   - Variáveis sem prefixo (`GEMINI_API_KEY`, `FIREBASE_ADMIN_*`, `NEXTAUTH_SECRET`) → server-side only.
 - **`.env.local` no `.gitignore`**: Impedido de ser commitado.
-- **Firebase Admin SDK** ([firebase-admin.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/lib/firebase-admin.ts)): Credenciais do Service Account isoladas em variáveis de ambiente do servidor, nunca acessíveis pelo browser.
+- **Firebase Admin SDK** ([firebase-admin.ts](src/lib/firebase-admin.ts)): Credenciais do Service Account isoladas em variáveis de ambiente do servidor, nunca acessíveis pelo browser.
 
 ### 5.3 Arquitetura de Gravação Segura (Hub Conversacional)
 
@@ -384,11 +363,11 @@ flowchart LR
 
 | Norma | Controle Aplicado | Evidência no Código |
 | :--- | :--- | :--- |
-| **ISO/IEC 27001** (SGSI — Ciclo PDCA) | Planejamento de riscos OWASP (**Plan**), implementação de controles Zod + Rules (**Do**), testes Vitest (**Check**), melhoria contínua via auditoria (**Act**). | Ciclo de desenvolvimento documentado em [DOC_ARQUITETURA.md](file:///c:/Users/Oliv/Downloads/InfluMarket/DOC_ARQUITETURA.md) e testado via `npm test`. |
-| **ISO/IEC 27002** — Controle de Acesso | RBAC via Firestore Security Rules e NextAuth JWT. | [firestore.rules](file:///c:/Users/Oliv/Downloads/InfluMarket/firestore.rules) e [auth.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/lib/auth.ts) |
-| **ISO/IEC 27002** — Criptografia | HTTPS nativo (GCP/Vercel), criptografia em repouso (Firestore), bcrypt para senhas. | [authService.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/authService.ts) e [api/auth/register](file:///c:/Users/Oliv/Downloads/InfluMarket/src/app/api/auth/register/route.ts) |
-| **ISO/IEC 27002** — Segurança nas Operações | Chaves de API isoladas em `.env.local`, não versionadas, separadas por escopo (público vs. server). | [.env.example](file:///c:/Users/Oliv/Downloads/InfluMarket/.env.example) e `.gitignore` |
-| **ISO/IEC 27002** — Auditoria e Rastreabilidade | Campo `_audit` com metadados em cada documento criado via Hub. | [db.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/db.ts) |
+| **ISO/IEC 27001** (SGSI — Ciclo PDCA) | Planejamento de riscos OWASP (**Plan**), implementação de controles Zod + Rules (**Do**), testes Vitest (**Check**), melhoria contínua via auditoria (**Act**). | Ciclo de desenvolvimento documentado em [DOC_ARQUITETURA.md](DOC_ARQUITETURA.md) e testado via `npm test`. |
+| **ISO/IEC 27002** — Controle de Acesso | RBAC via Firestore Security Rules e NextAuth JWT. | [firestore.rules](firestore.rules) e [auth.ts](src/lib/auth.ts) |
+| **ISO/IEC 27002** — Criptografia | HTTPS nativo (GCP/Vercel), criptografia em repouso (Firestore), bcrypt para senhas. | [authService.ts](src/services/authService.ts) e [api/auth/register](src/app/api/auth/register/route.ts) |
+| **ISO/IEC 27002** — Segurança nas Operações | Chaves de API isoladas em `.env.local`, não versionadas, separadas por escopo (público vs. server). | [.env.example](.env.example) e `.gitignore` |
+| **ISO/IEC 27002** — Auditoria e Rastreabilidade | Campo `_audit` com metadados em cada documento criado via Hub. | [db.ts](src/services/db.ts) |
 
 ### 5.6 Auditoria Contínua e Automatizada
 
@@ -431,7 +410,7 @@ flowchart LR
   > **Pipelines CI/CD não encontrados:**
   > Não foram encontrados arquivos de automação de pipeline (como diretório `.github/workflows/`, GitLab CI `.gitlab-ci.yml` ou scripts de deploy automatizado).
 - **Testes Automatizados Locais:**
-  - Framework: [Vitest](file:///c:/Users/Oliv/Downloads/InfluMarket/vitest.config.mts) executando sobre ambiente `jsdom`.
+  - Framework: [Vitest](vitest.config.mts) executando sobre ambiente `jsdom`.
   - Comandos:
     ```bash
     npm test         # Executa a suite de testes unitários e de integração
@@ -440,11 +419,11 @@ flowchart LR
     npm run build    # Compilação e verificação de tipagem TypeScript
     ```
 - **Arquivos de Testes Existentes:**
-  - [src/app/page.test.tsx](file:///c:/Users/Oliv/Downloads/InfluMarket/src/app/page.test.tsx): Validação dos componentes da Landing Page.
-  - [src/app/api/campaigns/route.test.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/app/api/campaigns/route.test.ts): Validação de autenticação e regras de negócio para listagem e criação de campanhas.
-  - [src/app/api/campaigns/[id]/proposals/route.test.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/app/api/campaigns/[id]/proposals/route.test.ts): Testes de autorização e envio de propostas.
-  - [src/lib/auth.test.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/lib/auth.test.ts): Testes de validação de credenciais do NextAuth.
-  - [src/services/services.test.ts](file:///c:/Users/Oliv/Downloads/InfluMarket/src/services/services.test.ts): Testes unitários dos serviços de dados.
+  - [src/app/page.test.tsx](src/app/page.test.tsx): Validação dos componentes da Landing Page.
+  - [src/app/api/campaigns/route.test.ts](src/app/api/campaigns/route.test.ts): Validação de autenticação e regras de negócio para listagem e criação de campanhas.
+  - [src/app/api/campaigns/[id]/proposals/route.test.ts](src/app/api/campaigns/[id]/proposals/route.test.ts): Testes de autorização e envio de propostas.
+  - [src/lib/auth.test.ts](src/lib/auth.test.ts): Testes de validação de credenciais do NextAuth.
+  - [src/services/services.test.ts](src/services/services.test.ts): Testes unitários dos serviços de dados.
 
 ---
 
@@ -479,11 +458,7 @@ GEMINI_API_KEY=sua_gemini_api_key
 # 1. Instalar dependências
 npm install
 
-# 2. Executar migrações do banco relacional (se aplicável)
-npx prisma generate
-npx prisma db push
-
-# 3. Iniciar servidor de desenvolvimento
+# 2. Iniciar servidor de desenvolvimento
 npm run dev
 ```
 Aplicação disponível em `http://localhost:3000`.

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { X, Send, Sparkles, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Send, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { sendProposal } from "@/services/proposalService";
 import { formatFriendlyError } from "@/services/authService";
 import { Campaign } from "@/types";
+import Image from "next/image";
 
 interface SendProposalModalProps {
   campaign: Campaign | null;
@@ -27,6 +28,12 @@ export default function SendProposalModal({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prevCampaignId, setPrevCampaignId] = useState(campaign?.id);
+
+  if (campaign?.id !== prevCampaignId) {
+    setPrevCampaignId(campaign?.id);
+    setRequestedBudget(campaign ? campaign.budget.toString() : "");
+  }
 
   if (!isOpen || !campaign) return null;
 
@@ -64,7 +71,7 @@ export default function SendProposalModal({
       setMessage("");
       onClose();
       if (onProposalSent) onProposalSent();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao enviar proposta:", err);
       setError(
         formatFriendlyError(err, "Não foi possível enviar sua proposta no momento. Tente novamente.")
@@ -109,9 +116,11 @@ export default function SendProposalModal({
         {/* Creator Mini Info */}
         <div className="flex items-center gap-3 p-3 rounded-xl bg-stone-50 border border-stone-200 mb-5">
           {creatorAvatar ? (
-            <img
+            <Image
               src={creatorAvatar}
               alt={creatorName}
+              width={40}
+              height={40}
               className="w-10 h-10 rounded-full object-cover ring-2 ring-white"
             />
           ) : (

@@ -27,6 +27,8 @@ import {
   ALLOWED_NICHES,
 } from "@/lib/validation";
 import { createCampaign } from "@/services/db";
+import { getAuth } from "firebase-admin/auth";
+import { getAdminApp } from "@/lib/firebase-admin";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -72,12 +74,12 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minuto
 const RATE_LIMIT_MAX_REQUESTS = 10; // máx. 10 requisições/minuto por IP
 
-function checkRateLimit(ip: string): boolean {
+function checkRateLimit(uid: string): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+  const entry = rateLimitMap.get(uid);
 
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(uid, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
 
@@ -226,7 +228,8 @@ function extractTextFromSteps(
 /** Executa chamada ao Gemini com retries e backoff exponencial. */
 async function callGeminiWithRetry(
   ai: GoogleGenAI,
-  input: InteractionStep[]
+  input: InteractionStep[],
+  tools: any[] = TOOLS
 ): Promise<Record<string, unknown> | null> {
   let lastError: Error | null = null;
 
@@ -237,7 +240,7 @@ async function callGeminiWithRetry(
         system_instruction: SYSTEM_INSTRUCTION,
         store: false,
         input: input as never,
-        tools: TOOLS,
+        tools: tools,
       })) as unknown as Record<string, unknown>;
 
       return interaction;
@@ -267,11 +270,24 @@ async function callGeminiWithRetry(
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     // ── 1. Rate Limiting ──────────────────────────────────────────────────
-    const clientIp =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "unknown";
+    // ── 1. Autenticação Firebase (Admin SDK) ────────────────────────────
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return Response.json({ error: "Token de autenticação não fornecido." }, { status: 401 });
+    }
+    
+    const idToken = authHeader.split("Bearer ")[1];
+    let decodedToken;
+    try {
+      const adminApp = getAdminApp();
+      decodedToken = await getAuth(adminApp).verifyIdToken(idToken);
+    } catch (err) {
+      console.error("[API /api/chat] Erro ao validar token:", err);
+      return Response.json({ error: "Token de autenticação inválido ou expirado." }, { status: 401 });
+    }
 
-    if (!checkRateLimit(clientIp)) {
+    // ── 1.5. Rate Limiting por UID ──────────────────────────────────────────
+    if (!checkRateLimit(decodedToken.uid)) {
       const errorBody: ChatApiError = {
         error: "Muitas requisições. Aguarde 1 minuto e tente novamente.",
       };
@@ -311,6 +327,11 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     const body = parseResult.data;
 
+    // ── 3.5. Validação de Autorização ─────────────────────────────────────
+    if (body.brandId !== decodedToken.uid) {
+      return Response.json({ error: "Acesso negado: ID da marca não confere com o usuário autenticado." }, { status: 403 });
+    }
+
     // ── 4. Sanitização de todas as mensagens ──────────────────────────────
     // Remove caracteres de controle e aplica limite de tamanho.
     const sanitizedMessages = body.messages.map((m) => ({
@@ -322,7 +343,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     const ai = new GoogleGenAI({ apiKey });
     const input = buildInteractionInput(sanitizedMessages);
 
-    const interaction = await callGeminiWithRetry(ai, input);
+    // Desativa a ferramenta de criar campanha se uma já foi criada nesta sessão
+    const activeTools = body.hasCampaign ? [] : TOOLS;
+
+    const interaction = await callGeminiWithRetry(ai, input, activeTools);
 
     if (!interaction) {
       const errorBody: ChatApiError = {

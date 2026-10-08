@@ -8,7 +8,6 @@ import {
   query,
   where,
   limit,
-  serverTimestamp,
 } from "firebase/firestore";
 import { db, sanitizeForFirestore } from "@/lib/firebase";
 import { Campaign, CreateCampaignDTO } from "@/types";
@@ -19,7 +18,6 @@ export type CreateCampaignData = CreateCampaignDTO;
  * Cria uma nova campanha atrelada ao brandId no Cloud Firestore.
  */
 export async function createCampaign(data: CreateCampaignData): Promise<Campaign> {
-  const campaignsRef = collection(db, "campaigns");
   const newCampaignData = {
     brandId: data.brandId,
     brandName: data.brandName,
@@ -39,15 +37,17 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
     proposalsCount: 0,
     deadline: data.deadline || "Em 30 dias",
     createdAt: new Date().toISOString(),
-    serverCreatedAt: serverTimestamp(),
   };
 
-  const docRef = await addDoc(campaignsRef, sanitizeForFirestore(newCampaignData));
+  const sanitizedData = sanitizeForFirestore(newCampaignData);
+  
+  const campaignsRef = collection(db, "campaigns");
+  const docRef = await addDoc(campaignsRef, sanitizedData);
 
   return {
     id: docRef.id,
     ...newCampaignData,
-  };
+  } as Campaign;
 }
 
 /**
@@ -94,7 +94,7 @@ export async function getOpenCampaigns(nicheFilter?: string, maxResults: number 
     return campaigns;
   } catch (error) {
     console.error("Erro ao buscar campanhas abertas:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -136,7 +136,7 @@ export async function getBrandCampaigns(brandId: string, maxResults: number = 50
     return campaigns;
   } catch (error) {
     console.error("Erro ao buscar campanhas da marca:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -159,7 +159,7 @@ export async function getCampaignById(id: string): Promise<Campaign | null> {
     } as Campaign;
   } catch (error) {
     console.error("Erro ao buscar campanha:", error);
-    return null;
+    throw error;
   }
 }
 
