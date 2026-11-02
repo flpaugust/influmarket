@@ -42,6 +42,7 @@ interface ChatMessage {
   text: string;
   campaignCreated?: boolean;
   campaignId?: string;
+  quickReplies?: string[];
   timestamp: Date;
 }
 
@@ -49,6 +50,7 @@ interface ApiResponse {
   reply: string;
   campaignCreated?: boolean;
   campaignId?: string;
+  quickReplies?: string[];
 }
 
 interface ApiErrorResponse {
@@ -106,13 +108,11 @@ export default function HubPage() {
 
   // ── Envio de mensagem ────────────────────────────────────────────────────────
 
-  const handleSubmit = useCallback(
-    async (e?: FormEvent) => {
-      e?.preventDefault();
-
+  const sendMessage = useCallback(
+    async (textToSend: string) => {
       if (!user || !profile) return;
 
-      const trimmed = input.trim();
+      const trimmed = textToSend.trim();
       if (!trimmed || isLoading) return;
 
       // Validação client-side de tamanho
@@ -159,7 +159,7 @@ export default function HubPage() {
             messages: historyForApi,
             brandId: user.uid,
             brandName: profile?.companyName || "Marca Parceira",
-            hasCampaign: messages.some(m => m.campaignCreated)
+            hasCampaign: messages.some((m) => m.campaignCreated),
           }),
         });
 
@@ -176,6 +176,7 @@ export default function HubPage() {
           text: data.reply,
           campaignCreated: data.campaignCreated,
           campaignId: data.campaignId,
+          quickReplies: data.quickReplies,
           timestamp: new Date(),
         };
 
@@ -199,7 +200,23 @@ export default function HubPage() {
         inputRef.current?.focus();
       }
     },
-    [input, isLoading, messages, user, profile]
+    [isLoading, messages, user, profile]
+  );
+
+  const handleSubmit = useCallback(
+    (e?: FormEvent) => {
+      e?.preventDefault();
+      sendMessage(input);
+    },
+    [input, sendMessage]
+  );
+
+  const handleSelectQuickReply = useCallback(
+    (reply: string) => {
+      setInput(reply);
+      sendMessage(reply);
+    },
+    [sendMessage]
   );
 
   // Enter para enviar, Shift+Enter para nova linha
@@ -260,7 +277,12 @@ export default function HubPage() {
           aria-live="polite"
         >
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onSelectQuickReply={handleSelectQuickReply}
+              disabled={isLoading}
+            />
           ))}
 
           {isLoading && <TypingIndicator />}
@@ -326,7 +348,15 @@ export default function HubPage() {
 
 // ── Sub-Components ─────────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  onSelectQuickReply,
+  disabled,
+}: {
+  message: ChatMessage;
+  onSelectQuickReply?: (reply: string) => void;
+  disabled?: boolean;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -359,6 +389,23 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               __html: formatMessage(message.text),
             }}
           />
+
+          {/* Quick Replies Suggestion Chips */}
+          {!isUser && message.quickReplies && message.quickReplies.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-stone-100">
+              {message.quickReplies.map((reply, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onSelectQuickReply?.(reply)}
+                  className="px-3 py-1.5 rounded-full bg-stone-100 hover:bg-lime-300 text-stone-800 hover:text-stone-950 text-xs font-semibold border border-stone-200 transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Banner de campanha criada */}
           {message.campaignCreated && (

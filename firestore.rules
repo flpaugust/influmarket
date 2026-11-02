@@ -61,12 +61,12 @@ service cloud.firestore {
         && isValidRole(request.resource.data.role)
         && request.resource.data.email is string;
 
-      // Atualização: somente o próprio usuário, sem alterar uid, role, ou métricas de confiança
+      // Atualização: somente o próprio usuário, sem alterar uid, role, ou métricas de confiança (rating, completedDeals)
       allow update: if isOwner(userId)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.email == resource.data.email
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rating', 'completedDeals', 'engagementRate']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rating', 'completedDeals']);
 
       // Deleção: proibida (soft-delete apenas, se necessário)
       allow delete: if false;
@@ -91,16 +91,18 @@ service cloud.firestore {
         && request.resource.data.niche is string
         && request.resource.data.title is string;
 
-      // Atualização: marca dona pode alterar dados básicos, OU qualquer um autenticado pode incrementar o contador de propostas
+      // Atualização: marca dona pode alterar dados básicos, OU influenciador validado pode incrementar o contador de propostas
       allow update: if isAuthenticated() && (
         (
           resource.data.brandId == request.auth.uid
           && request.resource.data.brandId == resource.data.brandId
           && request.resource.data.budget >= resource.data.budget
-          && onlyChanges(['title', 'description', 'deliverables', 'deadline', 'status', 'budget'])
+          && onlyChanges(['title', 'description', 'deliverables', 'deadline', 'status', 'budget', 'updatedAt'])
         ) || (
-          onlyChanges(['proposalsCount']) 
+          onlyChanges(['proposalsCount'])
           && request.resource.data.proposalsCount == resource.data.proposalsCount + 1
+          && userRole() == 'INFLUENCER'
+          && exists(/databases/$(database)/documents/proposals/$(campaignId + '_' + request.auth.uid))
         )
       );
 
@@ -120,8 +122,9 @@ service cloud.firestore {
         && (resource.data.influencerId == request.auth.uid
             || resource.data.brandId == request.auth.uid);
 
-      // Criação: apenas o próprio influenciador, status obrigatório PENDING, brandId validado
+      // Criação: apenas influenciador autenticado, status obrigatório PENDING, brandId validado
       allow create: if isAuthenticated()
+        && userRole() == 'INFLUENCER'
         && request.resource.data.influencerId == request.auth.uid
         && request.resource.data.status == 'PENDING'
         && request.resource.data.campaignId is string

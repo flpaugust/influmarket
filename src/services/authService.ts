@@ -111,6 +111,7 @@ export async function registerUser(
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
 
+  const now = new Date().toISOString();
   const userProfile: UserProfile = {
     uid: user.uid,
     email: user.email || email,
@@ -129,7 +130,13 @@ export async function registerUser(
     youtube: initialData.youtube,
     avatar: initialData.avatar,
     logo: initialData.logo,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    _audit: {
+      createdBy: user.uid,
+      createdVia: "Web_Client",
+      timestamp: now,
+      sdkVersion: "firebase-modular",
+    },
   };
 
   try {

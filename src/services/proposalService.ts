@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   increment,
 } from "firebase/firestore";
-import { db, sanitizeForFirestore } from "@/lib/firebase";
+import { db, auth, sanitizeForFirestore } from "@/lib/firebase";
 import { Proposal, ProposalStatus, SendProposalDTO } from "@/types";
 
 export type SendProposalData = SendProposalDTO;
@@ -20,6 +20,7 @@ export type SendProposalData = SendProposalDTO;
  * Cria proposta associando influenciador e campanha no Cloud Firestore.
  */
 export async function sendProposal(data: SendProposalData): Promise<Proposal> {
+  const now = new Date().toISOString();
   const newProposalData = {
     campaignId: data.campaignId,
     campaignTitle: data.campaignTitle,
@@ -35,8 +36,14 @@ export async function sendProposal(data: SendProposalData): Promise<Proposal> {
     requestedBudget: data.requestedBudget ? Number(data.requestedBudget) : undefined,
     message: data.message,
     status: "PENDING" as ProposalStatus,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     serverCreatedAt: serverTimestamp(),
+    _audit: {
+      createdBy: data.influencerId,
+      createdVia: "Web_Client",
+      timestamp: now,
+      sdkVersion: "firebase-modular",
+    },
   };
 
   const proposalId = `${data.campaignId}_${data.influencerId}`;
@@ -73,10 +80,15 @@ export async function getCampaignProposals(
   maxResults: number = 50
 ): Promise<Proposal[]> {
   try {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) {
+      throw new Error("Usuário não autenticado para buscar propostas.");
+    }
     const proposalsRef = collection(db, "proposals");
     const q = query(
       proposalsRef,
       where("campaignId", "==", campaignId),
+      where("brandId", "==", currentUid),
       limit(maxResults)
     );
     const querySnapshot = await getDocs(q);
@@ -153,7 +165,7 @@ export async function updateProposalStatus(
   const proposalRef = doc(db, "proposals", proposalId);
   await updateDoc(proposalRef, {
     status,
-    statusUpdatedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 }
 

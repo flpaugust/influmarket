@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SendProposalModal from "@/components/modals/SendProposalModal";
@@ -10,31 +12,20 @@ import { getOpenCampaigns } from "@/services/campaignService";
 import { getInfluencerProposals } from "@/services/proposalService";
 import { formatFriendlyError } from "@/services/authService";
 import { Campaign, Proposal } from "@/types";
+import Link from "next/link";
 import {
-  Sparkles,
-  Users,
-  TrendingUp,
-  Radio,
-  ExternalLink,
   Edit3,
   Filter,
-  DollarSign,
-  Send,
   CheckCircle2,
-  Clock,
-  XCircle,
-  Video,
-  Layers,
-  Check,
-  Camera,
+  Send,
   Loader2,
   Inbox,
   UserCheck,
   AlertCircle,
 } from "lucide-react";
-import Link from "next/link";
 
 export default function CreatorDashboardPage() {
+  const router = useRouter();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<"opportunities" | "proposals">("opportunities");
   const [selectedNiche, setSelectedNiche] = useState<string>("TODOS");
@@ -48,6 +39,17 @@ export default function CreatorDashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Role-Based Guard: Redireciona marca para /dashboard/marca
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.replace("/login");
+      } else if (profile?.role === "BRAND") {
+        router.replace("/dashboard/marca");
+      }
+    }
+  }, [authLoading, user, profile?.role, router]);
+
   const loadData = useCallback(async () => {
     setLoadingData(true);
     setErrorMessage(null);
@@ -59,7 +61,7 @@ export default function CreatorDashboardPage() {
         const props = await getInfluencerProposals(user.uid);
         setProposals(props);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar dados do criador:", err);
       setErrorMessage(
         formatFriendlyError(err, "Não foi possível carregar as oportunidades no momento. Tente novamente.")
@@ -70,10 +72,34 @@ export default function CreatorDashboardPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadData();
+    let isMounted = true;
+    if (!authLoading && user) {
+      (async () => {
+        try {
+          const camps = await getOpenCampaigns();
+          if (!isMounted) return;
+          setCampaigns(camps);
+
+          const props = await getInfluencerProposals(user.uid);
+          if (!isMounted) return;
+          setProposals(props);
+        } catch (err: unknown) {
+          if (!isMounted) return;
+          console.error("Erro ao carregar dados do criador:", err);
+          setErrorMessage(
+            formatFriendlyError(err, "Não foi possível carregar as oportunidades no momento. Tente novamente.")
+          );
+        } finally {
+          if (isMounted) {
+            setLoadingData(false);
+          }
+        }
+      })();
     }
-  }, [authLoading, loadData]);
+    return () => {
+      isMounted = false;
+    };
+  }, [authLoading, user]);
 
   // Filter campaigns
   const filteredCampaigns = campaigns.filter((camp) => {
@@ -125,9 +151,12 @@ export default function CreatorDashboardPage() {
               {/* Left Profile Info */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
                 {creatorAvatar ? (
-                  <img
+                  <Image
                     src={creatorAvatar}
                     alt={creatorName}
+                    width={80}
+                    height={80}
+                    unoptimized
                     className="w-20 h-20 rounded-3xl object-cover ring-2 ring-stone-100 shadow-xs"
                   />
                 ) : (
@@ -254,7 +283,7 @@ export default function CreatorDashboardPage() {
                   <span className="text-xs font-bold text-stone-400 uppercase tracking-wider mr-1 flex items-center gap-1">
                     <Filter className="w-3.5 h-3.5" /> Nicho:
                   </span>
-                  {["TODOS", "Tech", "Moda", "Fitness", "Gastronomia", "Games"].map((cat) => (
+                  {["TODOS", "Tecnologia", "Moda", "Fitness", "Gastronomia", "Games"].map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setSelectedNiche(cat)}
@@ -322,17 +351,20 @@ export default function CreatorDashboardPage() {
                         {/* Brand header */}
                         <div className="flex items-center justify-between gap-2 mb-4">
                           <div className="flex items-center gap-2.5">
-                            <img
+                            <Image
                               src={
                                 camp.brandLogo ||
                                 "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=160&auto=format&fit=crop&q=80"
                               }
-                              alt={camp.brandName}
+                              alt={camp.brandName || "Marca Parceira"}
+                              width={36}
+                              height={36}
+                              unoptimized
                               className="w-9 h-9 rounded-xl object-cover ring-1 ring-stone-200"
                             />
                             <div>
                               <span className="text-xs font-bold text-stone-900 block leading-none">
-                                {camp.brandName}
+                                {camp.brandName || "Marca Parceira"}
                               </span>
                               <span className="text-[10px] text-stone-400">
                                 {camp.brandIndustry || "E-commerce"}
@@ -464,7 +496,7 @@ export default function CreatorDashboardPage() {
                       </h3>
 
                       <p className="text-xs text-stone-600 leading-relaxed max-w-2xl">
-                        "{prop.message}"
+                        &quot;{prop.message}&quot;
                       </p>
                     </div>
 

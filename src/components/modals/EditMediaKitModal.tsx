@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, CheckCircle2, User, Sparkles, Loader2, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { useState } from "react";
+import Image from "next/image";
+import { X, Loader2, AlertCircle, Image as ImageIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { formatFriendlyError } from "@/services/authService";
 
@@ -11,16 +12,28 @@ interface EditMediaKitModalProps {
   onProfileUpdated?: () => void;
 }
 
-export default function EditMediaKitModal({
-  isOpen,
+function parseSafeInt(val: string): number {
+  const num = parseInt(val, 10);
+  return isNaN(num) ? 0 : num;
+}
+
+function parseSafeFloat(val: string): number {
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num;
+}
+
+function EditMediaKitModalContent({
   onClose,
   onProfileUpdated,
-}: EditMediaKitModalProps) {
+}: {
+  onClose: () => void;
+  onProfileUpdated?: () => void;
+}) {
   const { profile, updateProfile } = useAuth();
   const [name, setName] = useState(profile?.name || "");
   const [handle, setHandle] = useState(profile?.handle || "");
   const [avatar, setAvatar] = useState(profile?.avatar || "");
-  const [niche, setNiche] = useState(profile?.niche || "Tech");
+  const [niche, setNiche] = useState(profile?.niche || "Tecnologia");
   const [followers, setFollowers] = useState(
     profile?.followers ? profile.followers.toString() : ""
   );
@@ -36,25 +49,6 @@ export default function EditMediaKitModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (profile) {
-      setName(profile.name || "");
-      setHandle(profile.handle || "");
-      setAvatar(profile.avatar || "");
-      setNiche(profile.niche || "Tech");
-      setFollowers(profile.followers ? profile.followers.toString() : "");
-      setEngagementRate(
-        profile.engagementRate ? profile.engagementRate.toString() : ""
-      );
-      setReach(profile.reach ? profile.reach.toString() : "");
-      setBio(profile.bio || "");
-      setInstagram(profile.instagram || "");
-      setTiktok(profile.tiktok || "");
-    }
-  }, [profile]);
-
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -66,9 +60,9 @@ export default function EditMediaKitModal({
         handle,
         avatar: avatar.trim(),
         niche,
-        followers: followers ? parseInt(followers) : 0,
-        engagementRate: engagementRate ? parseFloat(engagementRate) : 0,
-        reach: reach ? parseInt(reach) : 0,
+        followers: parseSafeInt(followers),
+        engagementRate: parseSafeFloat(engagementRate),
+        reach: parseSafeInt(reach),
         bio,
         instagram,
         tiktok,
@@ -76,7 +70,7 @@ export default function EditMediaKitModal({
 
       onClose();
       if (onProfileUpdated) onProfileUpdated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao atualizar mídia kit:", err);
       setError(
         formatFriendlyError(err, "Não foi possível salvar as alterações no perfil. Tente novamente.")
@@ -119,9 +113,12 @@ export default function EditMediaKitModal({
             </label>
             <div className="flex items-center gap-3">
               {avatar ? (
-                <img
+                <Image
                   src={avatar}
                   alt="Avatar Preview"
+                  width={48}
+                  height={48}
+                  unoptimized
                   className="w-12 h-12 rounded-2xl object-cover ring-2 ring-stone-200 shrink-0"
                 />
               ) : (
@@ -217,7 +214,7 @@ export default function EditMediaKitModal({
               type="text"
               value={niche}
               onChange={(e) => setNiche(e.target.value)}
-              placeholder="ex: Tech, Moda, Fitness"
+              placeholder="ex: Tecnologia, Moda, Fitness"
               className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
             />
           </div>
@@ -284,4 +281,9 @@ export default function EditMediaKitModal({
       </div>
     </div>
   );
+}
+
+export default function EditMediaKitModal(props: EditMediaKitModalProps) {
+  if (!props.isOpen) return null;
+  return <EditMediaKitModalContent {...props} />;
 }

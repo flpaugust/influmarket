@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NewCampaignModal from "@/components/modals/NewCampaignModal";
 import { useAuth } from "@/context/AuthContext";
-import { getBrandCampaigns, deleteCampaign } from "@/services/campaignService";
+import { getBrandCampaigns, deleteCampaign, updateCampaignStatus } from "@/services/campaignService";
 import { getBrandProposals, updateProposalStatus } from "@/services/proposalService";
 import { formatFriendlyError } from "@/services/authService";
 import { Campaign, Proposal } from "@/types";
@@ -15,32 +16,29 @@ import {
   Plus,
   DollarSign,
   TrendingUp,
-  Users,
   CheckCircle2,
   XCircle,
-  Clock,
   ChevronDown,
   ChevronUp,
-  Sparkles,
-  ExternalLink,
-  ShieldAlert,
-  Send,
   Loader2,
   Inbox,
   AlertCircle,
-  Filter,
   MessageSquare,
-  FileText,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
 function BrandDashboardContent() {
+  const router = useRouter();
   const { user, profile, loading: authLoading, showToast } = useAuth();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "propostas" ? "propostas" : "campanhas";
+  const tabParam = searchParams.get("tab");
 
-  const [activeTab, setActiveTab] = useState<"campanhas" | "propostas">(initialTab);
+  const [userSelectedTab, setUserSelectedTab] = useState<"campanhas" | "propostas" | null>(null);
+  const activeTab =
+    userSelectedTab ?? ((tabParam === "propostas" || tabParam === "campanhas") ? tabParam : "campanhas");
+  const setActiveTab = (tab: "campanhas" | "propostas") => setUserSelectedTab(tab);
+
   const [selectedProposalFilter, setSelectedProposalFilter] = useState<"ALL" | "PENDING" | "ACCEPTED" | "REJECTED">("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
@@ -49,12 +47,16 @@ function BrandDashboardContent() {
   const [loadingData, setLoadingData] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Role Guard: Redireciona influencer para /dashboard/creator
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam === "propostas" || tabParam === "campanhas") {
-      setActiveTab(tabParam);
+    if (!authLoading) {
+      if (!user) {
+        router.replace("/login");
+      } else if (profile?.role === "INFLUENCER") {
+        router.replace("/dashboard/creator");
+      }
     }
-  }, [searchParams]);
+  }, [authLoading, user, profile?.role, router]);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -71,7 +73,7 @@ function BrandDashboardContent() {
         if (prev) return prev;
         return camps.length > 0 ? (camps[0].id || null) : null;
       });
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar dados da marca:", err);
       setErrorMessage(
         formatFriendlyError(err, "Não foi possível carregar os dados. Verifique sua conexão e tente novamente.")
@@ -82,12 +84,38 @@ function BrandDashboardContent() {
   }, [user]);
 
   useEffect(() => {
+    let isMounted = true;
     if (!authLoading && user) {
-      loadData();
-    } else if (!authLoading && !user) {
-      setLoadingData(false);
+      (async () => {
+        try {
+          const [camps, props] = await Promise.all([
+            getBrandCampaigns(user.uid),
+            getBrandProposals(user.uid),
+          ]);
+          if (!isMounted) return;
+          setCampaigns(camps);
+          setProposals(props);
+          setExpandedCampaignId((prev) => {
+            if (prev) return prev;
+            return camps.length > 0 ? (camps[0].id || null) : null;
+          });
+        } catch (err: unknown) {
+          if (!isMounted) return;
+          console.error("Erro ao carregar dados da marca:", err);
+          setErrorMessage(
+            formatFriendlyError(err, "Não foi possível carregar os dados. Verifique sua conexão e tente novamente.")
+          );
+        } finally {
+          if (isMounted) {
+            setLoadingData(false);
+          }
+        }
+      })();
     }
-  }, [user, authLoading, loadData]);
+    return () => {
+      isMounted = false;
+    };
+  }, [user, authLoading]);
 
   const handleUpdateStatus = async (proposalId: string, status: "ACCEPTED" | "REJECTED") => {
     try {
@@ -95,12 +123,29 @@ function BrandDashboardContent() {
       setProposals((prev) =>
         prev.map((p) => (p.id === proposalId ? { ...p, status } : p))
       );
+
+      if (status === "ACCEPTED") {
+        const targetProposal = proposals.find((p) => p.id === proposalId);
+        if (targetProposal?.campaignId) {
+          try {
+            await updateCampaignStatus(targetProposal.campaignId, "IN_PROGRESS");
+            setCampaigns((prev) =>
+              prev.map((c) =>
+                c.id === targetProposal.campaignId ? { ...c, status: "IN_PROGRESS" } : c
+              )
+            );
+          } catch (campErr) {
+            console.error("Erro ao atualizar status da campanha para IN_PROGRESS:", campErr);
+          }
+        }
+      }
+
       showToast(
         status === "ACCEPTED"
-          ? "🎉 Proposta aceita! O contrato foi gerado com sucesso."
+          ? "🎉 Proposta aceita! O contrato foi gerado com sucesso e a campanha está em andamento."
           : "Proposta recusada com feedback cordial."
       );
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Erro ao atualizar status da proposta:", err);
       showToast("❌ Erro ao atualizar proposta.");
     }
@@ -192,9 +237,12 @@ function BrandDashboardContent() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                 {companyLogo ? (
-                  <img
+                  <Image
                     src={companyLogo}
                     alt={companyName}
+                    width={64}
+                    height={64}
+                    unoptimized
                     className="w-16 h-16 rounded-2xl object-cover ring-2 ring-stone-100 shadow-xs"
                   />
                 ) : (
@@ -410,10 +458,16 @@ function BrandDashboardContent() {
                               className={`pill-badge text-[11px] ${
                                 camp.status === "OPEN"
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : camp.status === "IN_PROGRESS"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
                                   : "bg-stone-100 text-stone-500 border-stone-200"
                               }`}
                             >
-                              {camp.status === "OPEN" ? "Aberta para Propostas" : "Encerrada"}
+                              {camp.status === "OPEN"
+                                ? "Aberta para Propostas"
+                                : camp.status === "IN_PROGRESS"
+                                ? "Em Andamento"
+                                : "Encerrada"}
                             </span>
                           </div>
                           <h3 className="text-lg font-bold text-stone-900">{camp.title}</h3>
@@ -440,6 +494,35 @@ function BrandDashboardContent() {
                               {campaignProposals.length}
                             </span>
                           </div>
+
+                          {(camp.status === "OPEN" || camp.status === "IN_PROGRESS") && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const confirmed = window.confirm(
+                                  `Deseja concluir a campanha "${camp.title}"?\n\nEla será marcada como encerrada.`
+                                );
+                                if (!confirmed) return;
+                                try {
+                                  await updateCampaignStatus(camp.id!, "CLOSED");
+                                  setCampaigns((prev) =>
+                                    prev.map((c) =>
+                                      c.id === camp.id ? { ...c, status: "CLOSED" } : c
+                                    )
+                                  );
+                                  showToast("🏁 Campanha concluída com sucesso!");
+                                } catch (err) {
+                                  console.error("Erro ao concluir campanha:", err);
+                                  showToast("❌ Erro ao concluir campanha.");
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-stone-100 text-stone-700 hover:bg-stone-200 font-semibold text-xs transition-all flex items-center gap-1.5"
+                              title="Concluir Campanha"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Concluir Campanha
+                            </button>
+                          )}
 
                           <button className="p-2 rounded-xl bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors">
                             {isExpanded ? (
@@ -493,9 +576,12 @@ function BrandDashboardContent() {
                               >
                                 <div className="flex items-start gap-3.5 flex-1">
                                   {prop.influencerAvatar ? (
-                                    <img
+                                    <Image
                                       src={prop.influencerAvatar}
                                       alt={prop.influencerName}
+                                      width={48}
+                                      height={48}
+                                      unoptimized
                                       className="w-12 h-12 rounded-2xl object-cover ring-1 ring-stone-200 shrink-0"
                                     />
                                   ) : (
@@ -517,7 +603,7 @@ function BrandDashboardContent() {
                                     </div>
 
                                     <p className="text-xs text-stone-600 leading-relaxed max-w-xl">
-                                      "{prop.message}"
+                                      &quot;{prop.message}&quot;
                                     </p>
 
                                     <div className="flex items-center gap-3 pt-1 text-[11px] text-stone-400">
@@ -678,9 +764,12 @@ function BrandDashboardContent() {
                       >
                         <div className="flex items-start gap-4 flex-1">
                           {prop.influencerAvatar ? (
-                            <img
+                            <Image
                               src={prop.influencerAvatar}
                               alt={prop.influencerName}
+                              width={56}
+                              height={56}
+                              unoptimized
                               className="w-14 h-14 rounded-2xl object-cover ring-2 ring-stone-100 shadow-xs shrink-0"
                             />
                           ) : (
@@ -710,7 +799,7 @@ function BrandDashboardContent() {
                             </div>
 
                             <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-100 text-xs text-stone-700 leading-relaxed">
-                              "{prop.message}"
+                              &quot;{prop.message}&quot;
                             </div>
                           </div>
                         </div>

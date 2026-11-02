@@ -28,15 +28,16 @@ import {
 } from "@/lib/validation";
 import { createCampaign } from "@/services/db";
 import { getAuth } from "firebase-admin/auth";
-import { getAdminApp } from "@/lib/firebase-admin";
+import { getAdminApp, getAdminDb } from "@/lib/firebase-admin";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 /** Resposta padrão da API para o frontend */
-interface ChatApiResponse {
+export interface ChatApiResponse {
   reply: string;
   campaignCreated?: boolean;
   campaignId?: string;
+  quickReplies?: string[];
 }
 
 /** Resposta de erro */
@@ -66,20 +67,35 @@ interface InteractionStep {
   [key: string]: unknown;
 }
 
-// ── Rate Limiter (In-Memory) ──────────────────────────────────────────────────
-// Proteção básica contra abuso. Em produção, substituir por Redis ou
-// Vercel KV para funcionar corretamente com múltiplas instâncias serverless.
+// ── Rate Limiter (In-Memory por IP) ──────────────────────────────────────────
+// Proteção básica contra abuso / DDoS (OWASP A05).
+// Limita a 10 requisições por minuto por IP com purge periódico de entradas expiradas.
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minuto
 const RATE_LIMIT_MAX_REQUESTS = 10; // máx. 10 requisições/minuto por IP
+const PURGE_INTERVAL_MS = 60_000;
+let lastPurge = Date.now();
 
-function checkRateLimit(uid: string): boolean {
+function purgeStaleRateLimits(now: number): void {
+  for (const [key, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitMap.delete(key);
+    }
+  }
+}
+
+function checkRateLimit(clientIp: string): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(uid);
+  if (now - lastPurge > PURGE_INTERVAL_MS) {
+    purgeStaleRateLimits(now);
+    lastPurge = now;
+  }
+
+  const entry = rateLimitMap.get(clientIp);
 
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(uid, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
 
@@ -103,8 +119,24 @@ function sanitizeInput(text: string): string {
 
 // ── Gemini Tool Declaration ───────────────────────────────────────────────────
 
-const createCampaignTool = {
-  type: "function" as const,
+interface InteractionToolParameterProperty {
+  type: string;
+  description: string;
+}
+
+interface InteractionTool {
+  type: "function";
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, InteractionToolParameterProperty>;
+    required: string[];
+  };
+}
+
+const createCampaignTool: InteractionTool = {
+  type: "function",
   name: "createCampaign",
   description:
     "Cria uma nova campanha de marketing de influência no banco de dados. " +
@@ -145,7 +177,7 @@ const createCampaignTool = {
   },
 };
 
-const TOOLS = [createCampaignTool];
+const TOOLS: InteractionTool[] = [createCampaignTool];
 
 // ── System Instruction (Hardened contra Prompt Injection) ─────────────────────
 // OWASP A03:2021 — O prompt delimita rigidamente o escopo de atuação da IA,
@@ -229,7 +261,7 @@ function extractTextFromSteps(
 async function callGeminiWithRetry(
   ai: GoogleGenAI,
   input: InteractionStep[],
-  tools: any[] = TOOLS
+  tools: InteractionTool[] = TOOLS
 ): Promise<Record<string, unknown> | null> {
   let lastError: Error | null = null;
 
@@ -265,12 +297,80 @@ async function callGeminiWithRetry(
   return null;
 }
 
+/**
+ * Gera respostas rápidas (quick replies) quando faltam dados essenciais (nicho ou orçamento).
+ */
+function generateQuickReplies(
+  messages: Array<{ role: "user" | "model"; text: string }>,
+  aiReply: string
+): string[] | undefined {
+  const replyLower = aiReply.toLowerCase();
+  const allUserText = messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.text.toLowerCase())
+    .join(" ");
+
+  const hasNiche = ALLOWED_NICHES.some((n) =>
+    allUserText.includes(n.toLowerCase())
+  );
+  const hasBudget =
+    /\b\d{2,}\b/.test(allUserText) ||
+    /r\$\s*\d+/.test(allUserText) ||
+    allUserText.includes("reais");
+
+  const asksBudget =
+    replyLower.includes("orçamento") ||
+    replyLower.includes("investir") ||
+    replyLower.includes("investimento") ||
+    replyLower.includes("valor") ||
+    replyLower.includes("budget");
+
+  const asksNiche =
+    replyLower.includes("nicho") ||
+    replyLower.includes("categoria") ||
+    replyLower.includes("segmento");
+
+  // Se a IA pede orçamento ou se o usuário forneceu nicho mas não orçamento
+  if (asksBudget || (hasNiche && !hasBudget)) {
+    return ["R$ 500", "R$ 1.500", "R$ 5.000"];
+  }
+
+  // Se a IA pede nicho ou se o usuário forneceu orçamento mas não nicho
+  if (asksNiche || (hasBudget && !hasNiche)) {
+    return ["Tecnologia", "Moda", "Gastronomia", "Fitness", "Beleza"];
+  }
+
+  // Se ambos estão ausentes e a conversa iniciou sobre criação de campanha
+  if (
+    !hasNiche &&
+    !hasBudget &&
+    (asksBudget || asksNiche || replyLower.includes("campanha") || replyLower.includes("ajudar"))
+  ) {
+    return ["Tecnologia", "Moda", "Gastronomia", "Fitness", "Beleza"];
+  }
+
+  return undefined;
+}
+
 // ── Route Handler ──────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
-    // ── 1. Rate Limiting ──────────────────────────────────────────────────
-    // ── 1. Autenticação Firebase (Admin SDK) ────────────────────────────
+    // ── 1. Rate Limiting por IP (OWASP A05) — executado ANTES da autenticação ──
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const realIp = request.headers.get("x-real-ip");
+    const clientIp = forwardedFor
+      ? forwardedFor.split(",")[0].trim()
+      : (realIp || "127.0.0.1");
+
+    if (!checkRateLimit(clientIp)) {
+      const errorBody: ChatApiError = {
+        error: "Muitas requisições. Aguarde 1 minuto e tente novamente.",
+      };
+      return Response.json(errorBody, { status: 429 });
+    }
+
+    // ── 2. Autenticação Firebase (Admin SDK) ────────────────────────────
     const authHeader = request.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return Response.json({ error: "Token de autenticação não fornecido." }, { status: 401 });
@@ -286,15 +386,17 @@ export async function POST(request: NextRequest): Promise<Response> {
       return Response.json({ error: "Token de autenticação inválido ou expirado." }, { status: 401 });
     }
 
-    // ── 1.5. Rate Limiting por UID ──────────────────────────────────────────
-    if (!checkRateLimit(decodedToken.uid)) {
-      const errorBody: ChatApiError = {
-        error: "Muitas requisições. Aguarde 1 minuto e tente novamente.",
-      };
-      return Response.json(errorBody, { status: 429 });
+    // ── 2.5. Verificação de Role (OWASP A01: Broken Access Control) ──────
+    // Apenas usuários com perfil "BRAND" podem criar campanhas via assistente.
+    const userDoc = await getAdminDb().collection("users").doc(decodedToken.uid).get();
+    if (userDoc.data()?.role !== "BRAND") {
+      return Response.json(
+        { error: "Acesso negado: apenas marcas podem criar campanhas via assistente." },
+        { status: 403 }
+      );
     }
 
-    // ── 2. Validar API Key do Gemini ──────────────────────────────────────
+    // ── 3. Validar API Key do Gemini ──────────────────────────────────────
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error("[API /api/chat] GEMINI_API_KEY não configurada.");
@@ -304,7 +406,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       return Response.json(errorBody, { status: 500 });
     }
 
-    // ── 3. Parse e Validação do Body com Zod ──────────────────────────────
+    // ── 4. Parse e Validação do Body com Zod ──────────────────────────────
     // OWASP A03: Rejeita payloads malformados antes de qualquer processamento.
     let rawBody: unknown;
     try {
@@ -327,13 +429,14 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     const body = parseResult.data;
 
-    // ── 3.5. Validação de Autorização ─────────────────────────────────────
+    // ── 4.5. Validação de Autorização ─────────────────────────────────────
     if (body.brandId !== decodedToken.uid) {
       return Response.json({ error: "Acesso negado: ID da marca não confere com o usuário autenticado." }, { status: 403 });
     }
 
-    // ── 4. Sanitização de todas as mensagens ──────────────────────────────
+    // ── 5. Sanitização de todas as mensagens e brandName ──────────────────
     // Remove caracteres de controle e aplica limite de tamanho.
+    const sanitizedBrandName = sanitizeInput(body.brandName);
     const sanitizedMessages = body.messages.map((m) => ({
       role: m.role,
       text: sanitizeInput(m.text),
@@ -395,7 +498,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       const campaign = await createCampaign({
         ...validatedData,
         brandId: body.brandId,
-        brandName: body.brandName,
+        brandName: sanitizedBrandName,
       });
 
       // ── 6c. Segunda chamada ao Gemini (confirmação humanizada) ──────
@@ -456,8 +559,11 @@ export async function POST(request: NextRequest): Promise<Response> {
       extractTextFromSteps(steps) ||
       "Desculpe, não consegui gerar uma resposta. Pode tentar novamente?";
 
+    const quickReplies = generateQuickReplies(body.messages, textReply);
+
     const normalBody: ChatApiResponse = {
       reply: textReply,
+      ...(quickReplies ? { quickReplies } : {}),
     };
 
     return Response.json(normalBody, { status: 200 });

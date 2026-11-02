@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 export default function Footer() {
   return (
