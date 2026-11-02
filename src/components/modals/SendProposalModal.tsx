@@ -49,14 +49,19 @@ export default function SendProposalModal({
       return;
     }
 
+    if (profile && profile.role === "BRAND") {
+      setError("Sua conta atual é do tipo Empresa/Marca. Apenas criadores (influenciadores) podem se candidatar a campanhas.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       await sendProposal({
         campaignId: campaign.id || "unknown-camp",
-        campaignTitle: campaign.title,
-        brandId: campaign.brandId,
+        campaignTitle: campaign.title || "Campanha",
+        brandId: campaign.brandId || "",
         influencerId: user.uid,
         influencerName: profile?.name || user.email?.split("@")[0] || "Criador",
         influencerAvatar: profile?.avatar,

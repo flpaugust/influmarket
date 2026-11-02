@@ -44,3 +44,9 @@ next-env.d.ts
 # agent teamwork & execution artifacts
 .agents/teamwork/
 
+# credentials & service account private keys
+*-firebase-adminsdk-*.json
+*-adminsdk-*.json
+*.serviceaccount.json
+
+
