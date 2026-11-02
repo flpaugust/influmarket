@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import HomePage from "./page";
 import { useAuth } from "@/context/AuthContext";
-import { usePathname, useRouter } from "next/navigation";
+import type { User } from "firebase/auth";
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: vi.fn(),
@@ -81,7 +81,7 @@ describe("HomePage (`/`) - Dynamic Contextual Rendering", () => {
 
   it("exibe InfluencerDashboardView quando autenticado como INFLUENCER", async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { uid: "inf-123", email: "creator@test.com" } as any,
+      user: { uid: "inf-123", email: "creator@test.com" } as unknown as User,
       profile: {
         uid: "inf-123",
         email: "creator@test.com",
@@ -112,7 +112,7 @@ describe("HomePage (`/`) - Dynamic Contextual Rendering", () => {
 
   it("exibe BrandDashboardView quando autenticado como BRAND", async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { uid: "brand-123", email: "brand@test.com" } as any,
+      user: { uid: "brand-123", email: "brand@test.com" } as unknown as User,
       profile: {
         uid: "brand-123",
         email: "brand@test.com",

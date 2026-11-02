@@ -10,6 +10,16 @@ export type ServiceResult<T> =
   | { success: false; error: string };
 
 /**
+ * Metadados de rastreabilidade e auditoria (ISO/IEC 27001 / LGPD)
+ */
+export interface AuditTrail {
+  createdBy: string;
+  createdVia: string;
+  timestamp: string;
+  sdkVersion: string;
+}
+
+/**
  * Entidade de Domínio: Perfil de Usuário
  */
 export interface UserProfile {
@@ -17,6 +27,7 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   createdAt?: string | Date;
+  _audit?: AuditTrail;
   // Influencer fields:
   name?: string;
   handle?: string;
@@ -56,6 +67,7 @@ export interface Campaign {
   proposalsCount?: number;
   createdAt?: string | Date;
   deadline?: string;
+  _audit?: AuditTrail;
 }
 
 /**
@@ -76,6 +88,8 @@ export interface Proposal {
   message: string;
   status: ProposalStatus;
   createdAt?: string | Date;
+  updatedAt?: string | Date;
+  _audit?: AuditTrail;
 }
 
 /**

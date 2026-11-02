@@ -5,12 +5,13 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  updateDoc,
   query,
   where,
   limit,
 } from "firebase/firestore";
 import { db, sanitizeForFirestore } from "@/lib/firebase";
-import { Campaign, CreateCampaignDTO } from "@/types";
+import { Campaign, CampaignStatus, CreateCampaignDTO } from "@/types";
 
 export type CreateCampaignData = CreateCampaignDTO;
 
@@ -18,6 +19,7 @@ export type CreateCampaignData = CreateCampaignDTO;
  * Cria uma nova campanha atrelada ao brandId no Cloud Firestore.
  */
 export async function createCampaign(data: CreateCampaignData): Promise<Campaign> {
+  const now = new Date().toISOString();
   const newCampaignData = {
     brandId: data.brandId,
     brandName: data.brandName,
@@ -33,10 +35,16 @@ export async function createCampaign(data: CreateCampaignData): Promise<Campaign
         : ["1 Reel no Instagram", "3 Stories com CTA"],
     budget: Number(data.budget),
     niche: data.niche,
-    status: "OPEN" as const,
+    status: (data.status || "OPEN") as CampaignStatus,
     proposalsCount: 0,
     deadline: data.deadline || "Em 30 dias",
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    _audit: {
+      createdBy: data.brandId,
+      createdVia: "Web_Client",
+      timestamp: now,
+      sdkVersion: "firebase-modular",
+    },
   };
 
   const sanitizedData = sanitizeForFirestore(newCampaignData);
@@ -69,16 +77,16 @@ export async function getOpenCampaigns(nicheFilter?: string, maxResults: number 
       const data = docSnap.data();
       campaigns.push({
         id: docSnap.id,
-        brandId: data.brandId,
-        brandName: data.brandName,
+        brandId: data.brandId || "",
+        brandName: data.brandName || "Marca Parceira",
         brandLogo: data.brandLogo,
         brandIndustry: data.brandIndustry,
-        title: data.title,
-        description: data.description,
+        title: data.title || "Campanha",
+        description: data.description || "",
         deliverables: data.deliverables || [],
-        budget: data.budget,
-        niche: data.niche,
-        status: data.status,
+        budget: Number(data.budget) || 0,
+        niche: data.niche || "Geral",
+        status: data.status || "OPEN",
         proposalsCount: data.proposalsCount || 0,
         createdAt: data.createdAt || new Date().toISOString(),
         deadline: data.deadline,
@@ -87,7 +95,7 @@ export async function getOpenCampaigns(nicheFilter?: string, maxResults: number 
 
     if (nicheFilter && nicheFilter !== "TODOS") {
       return campaigns.filter(
-        (c) => c.niche.toLowerCase() === nicheFilter.toLowerCase()
+        (c) => (c.niche || "").toLowerCase() === nicheFilter.toLowerCase()
       );
     }
 
@@ -117,16 +125,16 @@ export async function getBrandCampaigns(brandId: string, maxResults: number = 50
       const data = docSnap.data();
       campaigns.push({
         id: docSnap.id,
-        brandId: data.brandId,
-        brandName: data.brandName,
+        brandId: data.brandId || "",
+        brandName: data.brandName || "Marca Parceira",
         brandLogo: data.brandLogo,
         brandIndustry: data.brandIndustry,
-        title: data.title,
-        description: data.description,
+        title: data.title || "Campanha",
+        description: data.description || "",
         deliverables: data.deliverables || [],
-        budget: data.budget,
-        niche: data.niche,
-        status: data.status,
+        budget: Number(data.budget) || 0,
+        niche: data.niche || "Geral",
+        status: data.status || "OPEN",
         proposalsCount: data.proposalsCount || 0,
         createdAt: data.createdAt || new Date().toISOString(),
         deadline: data.deadline,
@@ -172,6 +180,30 @@ export async function deleteCampaign(campaignId: string): Promise<void> {
     await deleteDoc(docRef);
   } catch (error) {
     console.error("Erro ao deletar campanha:", error);
+    throw error;
+  }
+}
+
+/**
+ * Atualiza o status da campanha (OPEN, IN_PROGRESS, CLOSED).
+ */
+export async function updateCampaignStatus(
+  campaignId: string,
+  status: CampaignStatus
+): Promise<void> {
+  const allowedStatuses: CampaignStatus[] = ["OPEN", "IN_PROGRESS", "CLOSED"];
+  if (!allowedStatuses.includes(status)) {
+    throw new Error(`Status de campanha inválido: ${status}`);
+  }
+
+  try {
+    const campaignRef = doc(db, "campaigns", campaignId);
+    await updateDoc(campaignRef, {
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar status da campanha:", error);
     throw error;
   }
 }

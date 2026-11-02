@@ -2,58 +2,60 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/context/AuthContext";
 import { formatFriendlyError } from "@/services/authService";
+import { UserProfile } from "@/types";
 import { Loader2, CheckCircle2, AlertCircle, Image as ImageIcon } from "lucide-react";
 
-export default function ProfilePage() {
-  const { user, profile, role, loading: authLoading, updateProfile, showToast } = useAuth();
-  const router = useRouter();
+function parseSafeInt(val: string): number {
+  const num = parseInt(val, 10);
+  return isNaN(num) ? 0 : num;
+}
+
+function parseSafeFloat(val: string): number {
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num;
+}
+
+function ProfileFormContent({
+  profile,
+  role,
+  updateProfile,
+  showToast,
+}: {
+  profile: UserProfile;
+  role: string | null;
+  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
+  showToast: (msg: string) => void;
+}) {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   // Influencer fields
-  const [name, setName] = useState("");
-  const [avatar, setAvatar] = useState("");
-  const [instagram, setInstagram] = useState("");
-  const [tiktok, setTiktok] = useState("");
-  const [followers, setFollowers] = useState("");
-  const [engagementRate, setEngagementRate] = useState("");
-  const [reach, setReach] = useState("");
-  const [niche, setNiche] = useState("");
-  const [bio, setBio] = useState("");
+  const [name, setName] = useState(profile.name || "");
+  const [avatar, setAvatar] = useState(profile.avatar || "");
+  const [instagram, setInstagram] = useState(profile.instagram || "");
+  const [tiktok, setTiktok] = useState(profile.tiktok || "");
+  const [followers, setFollowers] = useState(
+    profile.followers ? profile.followers.toString() : ""
+  );
+  const [engagementRate, setEngagementRate] = useState(
+    profile.engagementRate ? profile.engagementRate.toString() : ""
+  );
+  const [reach, setReach] = useState(
+    profile.reach ? profile.reach.toString() : ""
+  );
+  const [niche, setNiche] = useState(profile.niche || "");
+  const [bio, setBio] = useState(profile.bio || "");
 
   // Brand fields
-  const [companyName, setCompanyName] = useState("");
-  const [logo, setLogo] = useState("");
-  const [industry, setIndustry] = useState("");
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-      return;
-    }
-    if (profile) {
-      if (profile.role === "INFLUENCER") {
-        setName(profile.name || "");
-        setAvatar(profile.avatar || "");
-        setInstagram(profile.instagram || "");
-        setTiktok(profile.tiktok || "");
-        setFollowers(profile.followers ? profile.followers.toString() : "");
-        setEngagementRate(profile.engagementRate ? profile.engagementRate.toString() : "");
-        setReach(profile.reach ? profile.reach.toString() : "");
-        setNiche(profile.niche || "");
-        setBio(profile.bio || "");
-      } else {
-        setCompanyName(profile.companyName || "");
-        setLogo(profile.logo || "");
-        setIndustry(profile.industry || "");
-      }
-    }
-  }, [authLoading, user, profile, router]);
+  const [companyName, setCompanyName] = useState(profile.companyName || "");
+  const [logo, setLogo] = useState(profile.logo || "");
+  const [industry, setIndustry] = useState(profile.industry || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,9 +70,9 @@ export default function ProfilePage() {
             avatar: avatar.trim(),
             instagram,
             tiktok,
-            followers: followers ? parseInt(followers) : 0,
-            engagementRate: engagementRate ? parseFloat(engagementRate) : 0,
-            reach: reach ? parseInt(reach) : 0,
+            followers: parseSafeInt(followers),
+            engagementRate: parseSafeFloat(engagementRate),
+            reach: parseSafeInt(reach),
             niche,
             bio,
           }
@@ -81,7 +83,7 @@ export default function ProfilePage() {
       setSuccess(true);
       showToast("✅ Perfil atualizado com sucesso!");
       setTimeout(() => setSuccess(false), 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao salvar perfil:", err);
       setError(
         formatFriendlyError(err, "Não foi possível salvar as alterações no perfil. Tente novamente.")
@@ -91,7 +93,251 @@ export default function ProfilePage() {
     }
   };
 
-  if (authLoading) {
+  return (
+    <div className="card-editorial p-6 sm:p-8 bg-white border border-stone-200/90 shadow-xs">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Perfil salvo com sucesso!</span>
+          </div>
+        )}
+
+        {role === "INFLUENCER" ? (
+          <>
+            {/* Avatar field with preview */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Foto de Perfil (URL da Imagem)
+              </label>
+              <div className="flex items-center gap-3">
+                {avatar ? (
+                  <Image
+                    src={avatar}
+                    alt="Avatar Preview"
+                    width={48}
+                    height={48}
+                    unoptimized
+                    className="w-12 h-12 rounded-2xl object-cover ring-2 ring-stone-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center border border-dashed border-stone-300 shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                )}
+                <input
+                  type="url"
+                  value={avatar}
+                  onChange={(e) => setAvatar(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="https://exemplo.com/sua-foto.jpg"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Nome de Exibição *
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                placeholder="Seu nome"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Instagram
+                </label>
+                <input
+                  type="text"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="https://instagram.com/..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  TikTok
+                </label>
+                <input
+                  type="text"
+                  value={tiktok}
+                  onChange={(e) => setTiktok(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="https://tiktok.com/@..."
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Seguidores
+                </label>
+                <input
+                  type="number"
+                  value={followers}
+                  onChange={(e) => setFollowers(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="ex: 15000"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Engajamento (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={engagementRate}
+                  onChange={(e) => setEngagementRate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="ex: 4.5"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Alcance Médio
+                </label>
+                <input
+                  type="number"
+                  value={reach}
+                  onChange={(e) => setReach(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="ex: 45000"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Nicho Principal *
+              </label>
+              <input
+                type="text"
+                value={niche}
+                onChange={(e) => setNiche(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                placeholder="Ex: Tecnologia, Moda, Fitness"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Bio / Proposta Editorial *
+              </label>
+              <textarea
+                rows={3}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900 resize-none"
+                placeholder="Fale sobre sua audiência, formatos e proposta de conteúdo..."
+                required
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Logo da Empresa (URL da Imagem)
+              </label>
+              <div className="flex items-center gap-3">
+                {logo ? (
+                  <Image
+                    src={logo}
+                    alt="Logo Preview"
+                    width={48}
+                    height={48}
+                    unoptimized
+                    className="w-12 h-12 rounded-2xl object-cover ring-2 ring-stone-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center border border-dashed border-stone-300 shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                )}
+                <input
+                  type="url"
+                  value={logo}
+                  onChange={(e) => setLogo(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                  placeholder="https://exemplo.com/logo.png"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Nome da Empresa / Marca *
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                placeholder="Ex: NextGen Audio"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Segmento / Indústria *
+              </label>
+              <input
+                type="text"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
+                placeholder="Ex: Hardware, E-commerce, Beleza"
+                required
+              />
+            </div>
+          </>
+        )}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full btn-dark py-3 text-xs font-bold flex items-center justify-center gap-2 mt-4"
+        >
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4" />
+          )}
+          {saving ? "Salvando alterações..." : "Salvar Alterações"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default function ProfilePage() {
+  const { user, profile, role, loading: authLoading, updateProfile, showToast } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, user, router]);
+
+  if (authLoading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FAFAF9]">
         <div className="flex flex-col items-center gap-3">
@@ -118,230 +364,13 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          <div className="card-editorial p-6 sm:p-8 bg-white border border-stone-200/90 shadow-xs">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-              {success && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>Perfil salvo com sucesso!</span>
-                </div>
-              )}
-
-              {role === "INFLUENCER" ? (
-                <>
-                  {/* Avatar field with preview */}
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Foto de Perfil (URL da Imagem)
-                    </label>
-                    <div className="flex items-center gap-3">
-                      {avatar ? (
-                        <img
-                          src={avatar}
-                          alt="Avatar Preview"
-                          className="w-12 h-12 rounded-2xl object-cover ring-2 ring-stone-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center border border-dashed border-stone-300 shrink-0">
-                          <ImageIcon className="w-5 h-5" />
-                        </div>
-                      )}
-                      <input
-                        type="url"
-                        value={avatar}
-                        onChange={(e) => setAvatar(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="https://exemplo.com/sua-foto.jpg"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Nome de Exibição *
-                    </label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                      placeholder="Seu nome"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                        Instagram
-                      </label>
-                      <input
-                        type="text"
-                        value={instagram}
-                        onChange={(e) => setInstagram(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="https://instagram.com/..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                        TikTok
-                      </label>
-                      <input
-                        type="text"
-                        value={tiktok}
-                        onChange={(e) => setTiktok(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="https://tiktok.com/@..."
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                        Seguidores
-                      </label>
-                      <input
-                        type="number"
-                        value={followers}
-                        onChange={(e) => setFollowers(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="ex: 15000"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                        Engajamento (%)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={engagementRate}
-                        onChange={(e) => setEngagementRate(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="ex: 4.5"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                        Alcance Médio
-                      </label>
-                      <input
-                        type="number"
-                        value={reach}
-                        onChange={(e) => setReach(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="ex: 45000"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Nicho Principal *
-                    </label>
-                    <input
-                      type="text"
-                      value={niche}
-                      onChange={(e) => setNiche(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                      placeholder="Ex: Tech, Moda, Fitness"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Bio / Proposta Editorial *
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900 resize-none"
-                      placeholder="Fale sobre sua audiência, formatos e proposta de conteúdo..."
-                      required
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Logo da Empresa (URL da Imagem)
-                    </label>
-                    <div className="flex items-center gap-3">
-                      {logo ? (
-                        <img
-                          src={logo}
-                          alt="Logo Preview"
-                          className="w-12 h-12 rounded-2xl object-cover ring-2 ring-stone-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center border border-dashed border-stone-300 shrink-0">
-                          <ImageIcon className="w-5 h-5" />
-                        </div>
-                      )}
-                      <input
-                        type="url"
-                        value={logo}
-                        onChange={(e) => setLogo(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                        placeholder="https://exemplo.com/logo.png"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Nome da Empresa / Marca *
-                    </label>
-                    <input
-                      type="text"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                      placeholder="Ex: NextGen Audio"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Segmento / Indústria *
-                    </label>
-                    <input
-                      type="text"
-                      value={industry}
-                      onChange={(e) => setIndustry(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-900"
-                      placeholder="Ex: Hardware, E-commerce, Beleza"
-                      required
-                    />
-                  </div>
-                </>
-              )}
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full btn-dark py-3 text-xs font-bold flex items-center justify-center gap-2 mt-4"
-              >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4" />
-                )}
-                {saving ? "Salvando alterações..." : "Salvar Alterações"}
-              </button>
-            </form>
-          </div>
+          <ProfileFormContent
+            key={profile.uid}
+            profile={profile}
+            role={role}
+            updateProfile={updateProfile}
+            showToast={showToast}
+          />
         </div>
       </main>
 

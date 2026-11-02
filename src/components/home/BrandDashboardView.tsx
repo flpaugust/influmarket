@@ -2,33 +2,26 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NewCampaignModal from "@/components/modals/NewCampaignModal";
 import { useAuth } from "@/context/AuthContext";
-import { getCampaignsByBrand } from "@/services/campaignService";
+import { getCampaignsByBrand, updateCampaignStatus } from "@/services/campaignService";
 import { getProposalsByBrand } from "@/services/proposalService";
 import { listInfluencers } from "@/services/profileService";
 import { formatFriendlyError } from "@/services/authService";
 import { Campaign, Proposal, UserProfile } from "@/types";
 import {
-  Sparkles,
   Plus,
-  ArrowRight,
-  TrendingUp,
-  DollarSign,
   CheckCircle2,
-  Filter,
   Users,
   Building2,
   Camera,
   Video,
-  Globe,
   Loader2,
   AlertCircle,
-  ExternalLink,
   MessageSquare,
-  ShieldCheck,
 } from "lucide-react";
 
 export default function BrandDashboardView() {
@@ -66,7 +59,7 @@ export default function BrandDashboardView() {
       setCampaigns(camps);
       setProposals(props);
       setInfluencers(infs);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar hub da marca:", err);
       setErrorMessage(
         formatFriendlyError(err, "Não foi possível carregar o marketplace de criadores. Tente novamente.")
@@ -77,8 +70,38 @@ export default function BrandDashboardView() {
   }, [user, selectedNiche, selectedFollowerRange, selectedPlatform]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let isMounted = true;
+    (async () => {
+      try {
+        const [camps, props, infs] = await Promise.all([
+          user ? getCampaignsByBrand(user.uid) : Promise.resolve([]),
+          user ? getProposalsByBrand(user.uid) : Promise.resolve([]),
+          listInfluencers({
+            niche: selectedNiche,
+            followerRange: selectedFollowerRange,
+            platform: selectedPlatform,
+          }),
+        ]);
+        if (!isMounted) return;
+        setCampaigns(camps);
+        setProposals(props);
+        setInfluencers(infs);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        console.error("Erro ao carregar hub da marca:", err);
+        setErrorMessage(
+          formatFriendlyError(err, "Não foi possível carregar o marketplace de criadores. Tente novamente.")
+        );
+      } finally {
+        if (isMounted) {
+          setLoadingData(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, selectedNiche, selectedFollowerRange, selectedPlatform]);
 
   const activeCampaignsCount = campaigns.filter((c) => c.status === "OPEN").length;
   const pendingProposalsCount = proposals.filter((p) => p.status === "PENDING").length;
@@ -90,6 +113,23 @@ export default function BrandDashboardView() {
       showToast("💡 Crie uma campanha para convidar criadores diretamente.");
     } else {
       showToast(`📩 Convite enviado com sucesso para ${creator.name || "o criador"}!`);
+    }
+  };
+
+  const handleCompleteCampaign = async (campaignId: string, campaignTitle: string) => {
+    const confirmed = window.confirm(
+      `Deseja concluir a campanha "${campaignTitle}"?\n\nEla será marcada como encerrada.`
+    );
+    if (!confirmed) return;
+    try {
+      await updateCampaignStatus(campaignId, "CLOSED");
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === campaignId ? { ...c, status: "CLOSED" } : c))
+      );
+      showToast("🏁 Campanha concluída com sucesso!");
+    } catch (err: unknown) {
+      console.error("Erro ao concluir campanha:", err);
+      showToast("❌ Erro ao concluir campanha.");
     }
   };
 
@@ -117,9 +157,12 @@ export default function BrandDashboardView() {
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative">
               <div className="flex items-start sm:items-center gap-4">
                 {companyLogo ? (
-                  <img
+                  <Image
                     src={companyLogo}
                     alt={companyName}
+                    width={64}
+                    height={64}
+                    unoptimized
                     className="w-16 h-16 rounded-2xl object-cover ring-2 ring-stone-100 shadow-xs"
                   />
                 ) : (
@@ -227,6 +270,62 @@ export default function BrandDashboardView() {
               </div>
             </Link>
           </div>
+
+          {/* Active Campaigns Management */}
+          {campaigns.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS").length > 0 && (
+            <div className="card-editorial p-5 bg-white border border-stone-200/90 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                <span className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-lime-600" />
+                  Campanhas em Andamento
+                </span>
+                <Link
+                  href="/dashboard/marca?tab=campanhas"
+                  className="text-xs font-semibold text-stone-500 hover:text-stone-900"
+                >
+                  Gerenciar no painel →
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {campaigns
+                  .filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS")
+                  .map((camp) => (
+                    <div
+                      key={camp.id}
+                      className="p-3.5 rounded-xl border border-stone-200/80 bg-stone-50/50 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span
+                            className={`pill-badge text-[10px] ${
+                              camp.status === "IN_PROGRESS"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}
+                          >
+                            {camp.status === "IN_PROGRESS" ? "Em Andamento" : "Aberta"}
+                          </span>
+                          <span className="text-xs font-bold text-stone-900 truncate">
+                            {camp.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-stone-400">
+                          R$ {Number(camp.budget).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} • {camp.niche}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleCompleteCampaign(camp.id!, camp.title)}
+                        className="px-2.5 py-1.5 rounded-lg bg-stone-900 text-white hover:bg-stone-800 text-xs font-semibold shrink-0 transition-colors flex items-center gap-1"
+                        title="Concluir Campanha"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-lime-400" />
+                        Concluir Campanha
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* 3. Vitrine / Marketplace de Descoberta de Criadores */}
           <div className="space-y-4">
@@ -353,9 +452,12 @@ export default function BrandDashboardView() {
                         {/* Avatar & Header Info */}
                         <div className="flex items-start gap-3.5 mb-4">
                           {inf.avatar ? (
-                            <img
+                            <Image
                               src={inf.avatar}
                               alt={inf.name || "Criador"}
+                              width={56}
+                              height={56}
+                              unoptimized
                               className="w-14 h-14 rounded-2xl object-cover ring-2 ring-stone-100 shadow-xs shrink-0"
                             />
                           ) : (

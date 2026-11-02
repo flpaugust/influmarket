@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import Navbar from "./Navbar";
 import { useAuth } from "@/context/AuthContext";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import type { User } from "firebase/auth";
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: vi.fn(),
@@ -49,7 +50,7 @@ describe("<Navbar />", () => {
 
   it("renderiza dados e badge de Criador quando autenticado como INFLUENCER", () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { uid: "user-inf", email: "laura@influencer.com" } as any,
+      user: { uid: "user-inf", email: "laura@influencer.com" } as unknown as User,
       profile: {
         uid: "user-inf",
         email: "laura@influencer.com",
@@ -78,7 +79,7 @@ describe("<Navbar />", () => {
 
   it("renderiza dados da marca quando autenticado como BRAND", () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { uid: "user-brand", email: "brand@test.com" } as any,
+      user: { uid: "user-brand", email: "brand@test.com" } as unknown as User,
       profile: {
         uid: "user-brand",
         email: "brand@test.com",

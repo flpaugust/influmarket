@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import NewCampaignModal from "@/components/modals/NewCampaignModal";
+import Image from "next/image";
 import {
-  Sparkles,
   Menu,
   X,
   ArrowRight,
@@ -14,9 +14,6 @@ import {
   Building2,
   LogOut,
   Plus,
-  Send,
-  FileText,
-  User,
   MessageSquareText,
 } from "lucide-react";
 
@@ -199,9 +196,12 @@ export default function Navbar() {
                     className="flex items-center gap-2 text-xs font-bold text-stone-900 hover:opacity-80 transition-opacity"
                   >
                     {avatarUrl ? (
-                      <img
+                      <Image
                         src={avatarUrl}
                         alt={displayName}
+                        width={28}
+                        height={28}
+                        unoptimized
                         className="w-7 h-7 rounded-full object-cover ring-1 ring-stone-300"
                       />
                     ) : (
@@ -319,9 +319,12 @@ export default function Navbar() {
                 <div className="pt-3 border-t border-stone-100 flex flex-col gap-2">
                   <div className="flex items-center gap-3 px-3 py-2">
                     {avatarUrl ? (
-                      <img
+                      <Image
                         src={avatarUrl}
                         alt="Avatar"
+                        width={32}
+                        height={32}
+                        unoptimized
                         className="w-8 h-8 rounded-full object-cover ring-1 ring-stone-300"
                       />
                     ) : (

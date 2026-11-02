@@ -4,12 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { formatAuthError, formatFriendlyError } from "@/services/authService";
+import { formatFriendlyError } from "@/services/authService";
 import {
-  UserCheck,
-  Building2,
   ArrowRight,
-  Sparkles,
   ShieldCheck,
   AlertCircle,
   Loader2,
@@ -40,7 +37,7 @@ export default function LoginPage() {
       } else {
         router.push("/dashboard/creator");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro no login:", err);
       const friendlyMessage = formatFriendlyError(
         err,

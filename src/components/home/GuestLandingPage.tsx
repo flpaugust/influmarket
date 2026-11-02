@@ -5,24 +5,28 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BentoGrid from "@/components/BentoGrid";
+import RoiCalculator from "@/components/lead-magnets/RoiCalculator";
+import EbookModal from "@/components/lead-magnets/EbookModal";
 import { getOpenCampaigns } from "@/services/campaignService";
 import { Campaign } from "@/types";
+import Image from "next/image";
 import {
   Sparkles,
   ArrowRight,
-  TrendingUp,
-  ShieldCheck,
   CheckCircle2,
-  Users,
   Zap,
   Building2,
-  DollarSign,
   Loader2,
+  BookOpen,
+  Download,
+  Lock,
+  BadgeCheck,
 } from "lucide-react";
 
 export default function GuestLandingPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ebookModalOpen, setEbookModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadPublicCampaigns() {
@@ -82,17 +86,29 @@ export default function GuestLandingPage() {
                 >
                   Entrar na Conta
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setEbookModalOpen(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-stone-100 hover:bg-stone-200/80 border border-stone-200 text-xs font-bold text-stone-800 transition-colors cursor-pointer"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-stone-700" />
+                  Playbook 2026 (PDF)
+                </button>
               </div>
 
               {/* Micro proof bar */}
-              <div className="pt-8 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs text-stone-500 font-medium">
+              <div className="pt-8 flex flex-wrap items-center justify-center gap-6 sm:gap-8 text-xs text-stone-500 font-medium">
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Sem mensalidades fixas</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-stone-900" />
-                  <span>Métricas em tempo real</span>
+                <div className="flex items-center gap-1.5" title="Pagamento retido com segurança até aprovação da entrega">
+                  <Lock className="w-4 h-4 text-stone-900" />
+                  <span className="font-semibold text-stone-800">Pagamento com Custódia Protegida</span>
+                </div>
+                <div className="flex items-center gap-1.5" title="Métricas auditadas via APIs oficiais">
+                  <BadgeCheck className="w-4 h-4 text-lime-600" />
+                  <span>Verificação Social (Instagram & TikTok)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-lime-600" />
@@ -103,8 +119,30 @@ export default function GuestLandingPage() {
           </div>
         </section>
 
-        {/* Bento Grid Showcase Section */}
-        <BentoGrid />
+        {/* Bento Grid Showcase Section (Mural de Creators) */}
+        <div id="creators">
+          <BentoGrid />
+        </div>
+
+        {/* Interactive ROI Calculator Section */}
+        <section id="calculadora-roi" className="py-16 bg-stone-100/50 border-t border-stone-200/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <span className="pill-badge pill-lime text-xs font-bold mb-2">
+                Ferramenta de Planejamento
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
+                Simule o Retorno da Sua Campanha Antes de Investir
+              </h2>
+              <p className="text-stone-500 text-sm mt-1">
+                Estimativas baseadas em taxas médias de engajamento, CPM e conversão
+                por segmento de mercado no Brasil.
+              </p>
+            </div>
+
+            <RoiCalculator initialNicheSlug="tecnologia" initialBudget={3000} />
+          </div>
+        </section>
 
         {/* Open Opportunities Section */}
         <section className="py-16 bg-white border-y border-stone-200/80">
@@ -160,9 +198,12 @@ export default function GuestLandingPage() {
                       <div className="flex items-center justify-between gap-2 mb-4">
                         <div className="flex items-center gap-2.5">
                           {camp.brandLogo ? (
-                            <img
+                            <Image
                               src={camp.brandLogo}
                               alt={camp.brandName}
+                              width={32}
+                              height={32}
+                              unoptimized
                               className="w-8 h-8 rounded-lg object-cover ring-1 ring-stone-200"
                             />
                           ) : (
@@ -222,6 +263,41 @@ export default function GuestLandingPage() {
           </div>
         </section>
 
+        {/* E-book Lead Magnet Banner */}
+        <section className="py-12 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="card-editorial p-8 sm:p-12 bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden shadow-md">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-lime-400/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+              <div className="space-y-3 max-w-2xl relative z-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-800 text-lime-400 border border-stone-700 text-xs font-bold">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  E-book Estratégico • Edição 2026
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-snug">
+                  Playbook de Marketing de Influência 2026: Estratégias, Métricas & ROI
+                </h3>
+                <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+                  Aprenda as fórmulas reais de CPM, checklists para escolha de nano e micro
+                  influenciadores, modelos de contratos blindados e estratégias de conversão.
+                </p>
+              </div>
+
+              <div className="relative z-10 shrink-0 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setEbookModalOpen(true)}
+                  className="w-full md:w-auto btn-lime py-3.5 px-6 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer group"
+                >
+                  <Download className="w-4 h-4 text-stone-950" />
+                  Baixar Playbook Gratuito
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Final Call to Action */}
         <section className="py-16">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -258,6 +334,13 @@ export default function GuestLandingPage() {
       </main>
 
       <Footer />
+
+      {/* E-book Lead Capture Modal */}
+      <EbookModal
+        isOpen={ebookModalOpen}
+        onClose={() => setEbookModalOpen(false)}
+        defaultRole="BRAND"
+      />
     </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, TrendingUp, Users, ShieldCheck, Zap, ArrowRight, CheckCircle2, MessageSquare, DollarSign } from "lucide-react";
-import Link from "next/link";
+import Image from "next/image";
+import { Sparkles, ShieldCheck, Zap, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export default function BentoGrid() {
   const [activeTab, setActiveTab] = useState<"reach" | "engagement">("reach");
@@ -58,9 +58,11 @@ export default function BentoGrid() {
 
               {/* Mini profile preview */}
               <div className="flex items-center gap-4 mb-6 p-4 rounded-xl bg-stone-50 border border-stone-200/70">
-                <img
+                <Image
                   src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80"
                   alt="Laura Alcântara"
+                  width={56}
+                  height={56}
                   className="w-14 h-14 rounded-full object-cover ring-2 ring-white shadow-xs"
                 />
                 <div className="flex-1">

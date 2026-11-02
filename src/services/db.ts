@@ -20,6 +20,7 @@
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import type { CampaignExtraction } from "@/lib/validation";
+import type { AuditTrail as BaseAuditTrail } from "@/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ export interface CampaignResult {
 }
 
 /** Metadados de auditoria gravados junto ao documento (ISO 27001). */
-interface AuditTrail {
+interface AuditTrail extends BaseAuditTrail {
   createdBy: string;
   createdVia: "Hub_Conversacional";
   timestamp: string;

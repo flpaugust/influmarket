@@ -5,14 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { UserRole } from "@/types";
-import { formatAuthError, formatFriendlyError } from "@/services/authService";
+import { formatFriendlyError } from "@/services/authService";
 import {
   UserCheck,
   Building2,
   ArrowRight,
-  Sparkles,
   CheckCircle2,
-  Shield,
   AlertCircle,
   Loader2,
 } from "lucide-react";
@@ -25,7 +23,7 @@ export default function CadastroPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [handleOrCompany, setHandleOrCompany] = useState("");
-  const [nicheOrIndustry, setNicheOrIndustry] = useState("Tech");
+  const [nicheOrIndustry, setNicheOrIndustry] = useState("Tecnologia");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,7 +67,7 @@ export default function CadastroPage() {
       } else {
         router.push("/dashboard/creator");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro no cadastro:", err);
       const friendlyMessage = formatFriendlyError(
         err,

@@ -52,7 +52,13 @@ export const CampaignExtractionSchema = z.object({
       {
         message: `Nicho inválido. Valores aceitos: ${ALLOWED_NICHES.join(", ")}.`,
       }
-    ),
+    )
+    .transform((val) => {
+      const canonical = ALLOWED_NICHES.find(
+        (n) => n.toLowerCase() === val.toLowerCase()
+      );
+      return (canonical || val) as AllowedNiche;
+    }),
   budget: z
     .number()
     .positive("Orçamento deve ser um valor positivo.")

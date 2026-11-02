@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EditMediaKitModal from "@/components/modals/EditMediaKitModal";
@@ -11,21 +12,14 @@ import { getProposalsByInfluencer } from "@/services/proposalService";
 import { formatFriendlyError } from "@/services/authService";
 import { Campaign, Proposal } from "@/types";
 import {
-  Sparkles,
-  ArrowRight,
-  TrendingUp,
-  DollarSign,
   CheckCircle2,
   Clock,
-  Filter,
-  Flame,
-  UserCheck,
   Send,
   Edit3,
   Loader2,
   AlertCircle,
   Building2,
-  Image as ImageIcon,
+  DollarSign,
 } from "lucide-react";
 
 export default function InfluencerDashboardView() {
@@ -42,8 +36,7 @@ export default function InfluencerDashboardView() {
   const [isMediaKitModalOpen, setIsMediaKitModalOpen] = useState(false);
 
   const creatorName = profile?.name || user?.email?.split("@")[0] || "Criador";
-  const creatorNiche = profile?.niche || "Tech";
-  const creatorFollowers = profile?.followers ?? 0;
+  const creatorNiche = profile?.niche || "Tecnologia";
   const creatorEngagement = profile?.engagementRate ?? 0;
   const creatorReach = profile?.reach ?? 0;
   const creatorAvatar = profile?.avatar || "";
@@ -59,7 +52,7 @@ export default function InfluencerDashboardView() {
       ]);
       setCampaigns(camps);
       setProposals(props);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar feed do criador:", err);
       setErrorMessage(
         formatFriendlyError(err, "Não foi possível carregar as campanhas no momento. Tente novamente.")
@@ -70,8 +63,32 @@ export default function InfluencerDashboardView() {
   }, [user]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let isMounted = true;
+    (async () => {
+      try {
+        const [camps, props] = await Promise.all([
+          getOpenCampaigns(),
+          user ? getProposalsByInfluencer(user.uid) : Promise.resolve([]),
+        ]);
+        if (!isMounted) return;
+        setCampaigns(camps);
+        setProposals(props);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        console.error("Erro ao carregar feed do criador:", err);
+        setErrorMessage(
+          formatFriendlyError(err, "Não foi possível carregar as campanhas no momento. Tente novamente.")
+        );
+      } finally {
+        if (isMounted) {
+          setLoadingData(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // Calculations
   const compatibleCampaignsCount = campaigns.filter(
@@ -124,9 +141,12 @@ export default function InfluencerDashboardView() {
               {/* Profile & Greeting */}
               <div className="flex items-start sm:items-center gap-4">
                 {creatorAvatar ? (
-                  <img
+                  <Image
                     src={creatorAvatar}
                     alt={creatorName}
+                    width={64}
+                    height={64}
+                    unoptimized
                     className="w-16 h-16 rounded-2xl object-cover ring-2 ring-stone-100 shadow-xs"
                   />
                 ) : (
@@ -265,7 +285,7 @@ export default function InfluencerDashboardView() {
                 <span className="text-xs text-stone-500 font-medium">Ordenar:</span>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
+                  onChange={(e) => setSortBy(e.target.value as "NEWEST" | "BUDGET_DESC")}
                   className="px-3 py-1.5 rounded-xl border border-stone-200 bg-stone-50 text-xs font-bold text-stone-800 focus:outline-none"
                 >
                   <option value="NEWEST">Mais Recentes</option>
@@ -324,19 +344,22 @@ export default function InfluencerDashboardView() {
                       <div className="flex items-center justify-between gap-2 mb-4">
                         <div className="flex items-center gap-2.5">
                           {camp.brandLogo ? (
-                            <img
+                            <Image
                               src={camp.brandLogo}
-                              alt={camp.brandName}
+                              alt={camp.brandName || "Marca Parceira"}
+                              width={32}
+                              height={32}
+                              unoptimized
                               className="w-8 h-8 rounded-lg object-cover ring-1 ring-stone-200"
                             />
                           ) : (
                             <div className="w-8 h-8 rounded-lg bg-stone-900 text-white font-bold text-xs flex items-center justify-center">
-                              {camp.brandName.charAt(0).toUpperCase()}
+                              {(camp.brandName || "M").charAt(0).toUpperCase()}
                             </div>
                           )}
                           <div>
                             <span className="text-xs font-bold text-stone-900 block line-clamp-1">
-                              {camp.brandName}
+                              {camp.brandName || "Marca Parceira"}
                             </span>
                             <span className="text-[10px] text-stone-400 block">
                               {camp.brandIndustry || "E-commerce"}
