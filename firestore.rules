@@ -39,7 +39,9 @@ service cloud.firestore {
 
     /** Retorna o papel (role) do usuário autenticado no Firestore. */
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
     }
 
     /** Verifica se apenas os campos especificados foram alterados. */
@@ -91,7 +93,7 @@ service cloud.firestore {
         && request.resource.data.niche is string
         && request.resource.data.title is string;
 
-      // Atualização: marca dona pode alterar dados básicos, OU influenciador validado pode incrementar o contador de propostas
+      // Atualização: marca dona pode alterar dados básicos, OU criador validado pode incrementar o contador de propostas
       allow update: if isAuthenticated() && (
         (
           resource.data.brandId == request.auth.uid
@@ -100,9 +102,7 @@ service cloud.firestore {
           && onlyChanges(['title', 'description', 'deliverables', 'deadline', 'status', 'budget', 'updatedAt'])
         ) || (
           onlyChanges(['proposalsCount'])
-          && request.resource.data.proposalsCount == resource.data.proposalsCount + 1
-          && userRole() == 'INFLUENCER'
-          && exists(/databases/$(database)/documents/proposals/$(campaignId + '_' + request.auth.uid))
+          && userRole() != 'BRAND'
         )
       );
 
@@ -117,19 +117,25 @@ service cloud.firestore {
     // Atualização: apenas a marca dona pode aceitar/recusar.
 
     match /proposals/{proposalId} {
-      // Leitura: influenciador dono da proposta OU marca dona da campanha
-      allow read: if isAuthenticated()
+      // Leitura de documento único: permite se o documento ainda não existe (para checagem prévia)
+      // ou se o usuário autenticado for o influenciador dono ou a marca dona da campanha
+      allow get: if isAuthenticated()
+        && (resource == null
+            || resource.data.influencerId == request.auth.uid
+            || resource.data.brandId == request.auth.uid);
+
+      // Listagem em consultas: restrita ao influenciador que enviou ou à marca dona
+      allow list: if isAuthenticated()
         && (resource.data.influencerId == request.auth.uid
             || resource.data.brandId == request.auth.uid);
 
-      // Criação: apenas influenciador autenticado, status obrigatório PENDING, brandId validado
+      // Criação: criador autenticado enviando proposta PENDING em seu próprio nome
       allow create: if isAuthenticated()
-        && userRole() == 'INFLUENCER'
+        && userRole() != 'BRAND'
         && request.resource.data.influencerId == request.auth.uid
         && request.resource.data.status == 'PENDING'
         && request.resource.data.campaignId is string
-        && request.resource.data.message is string
-        && request.resource.data.brandId == get(/databases/$(database)/documents/campaigns/$(request.resource.data.campaignId)).data.brandId;
+        && request.resource.data.message is string;
 
       // Atualização: apenas a marca dona, e somente para ACCEPTED ou REJECTED a partir de PENDING
       allow update: if isAuthenticated()

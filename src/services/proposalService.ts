@@ -49,9 +49,16 @@ export async function sendProposal(data: SendProposalData): Promise<Proposal> {
   const proposalId = `${data.campaignId}_${data.influencerId}`;
   const docRef = doc(db, "proposals", proposalId);
   
-  const existingDoc = await getDoc(docRef);
-  if (existingDoc.exists()) {
-    throw new Error("Você já enviou uma proposta para esta campanha.");
+  try {
+    const existingDoc = await getDoc(docRef);
+    if (existingDoc.exists()) {
+      throw new Error("Você já enviou uma proposta para esta campanha.");
+    }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("já enviou uma proposta")) {
+      throw err;
+    }
+    console.warn("Verificação prévia de existência da proposta ignorada:", err);
   }
 
   await setDoc(docRef, sanitizeForFirestore(newProposalData));
